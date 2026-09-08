@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import StrEnum
 
-from sqlalchemy import Boolean, DateTime, Enum, Index, String, func
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from database.base import Base
@@ -54,3 +54,14 @@ class Device(Base):
     )
     is_gateway: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     missed_scans: Mapped[int] = mapped_column(default=0, nullable=False)
+    device_type: Mapped[str | None] = mapped_column(String(40))
+    owner: Mapped[str | None] = mapped_column(String(120))
+    profile_id: Mapped[int | None] = mapped_column(
+        ForeignKey("control_profiles.id", ondelete="SET NULL"), index=True
+    )
+    trust_state: Mapped[str] = mapped_column(String(20), default="unknown", nullable=False)
+    internet_access: Mapped[str] = mapped_column(String(20), default="allowed", nullable=False)
+    lan_access: Mapped[str] = mapped_column(String(20), default="allowed", nullable=False)
+    paused_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    quarantine_reason: Mapped[str | None] = mapped_column(String(200))
+    quarantined_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
