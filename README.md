@@ -15,14 +15,19 @@ NetWatch is an open-source, self-hosted network monitoring dashboard for discove
 - Strict private-subnet and scanner configuration validation
 - Bounded, non-overlapping local discovery with platform-aware ping and neighbor-table enrichment
 - Persisted manual scan records with demo-safe execution
+- Live dashboard updates with reconnecting WebSocket transport
+- Historical activity charts, device metrics, event filters, and LAN mapping
+- Automated backend and frontend checks through GitHub Actions
 - Docker Compose development and deployment path
 - Honest empty, loading, and error states with no generated production metrics
 
-Phases 1–6 establish the runnable application foundation, device inventory, private-network discovery, scheduled monitoring, service checks, state-change history, and actionable alerts. Live frontend updates and broader analytics follow in the subsequent project phases.
+The ten implementation phases cover the runnable foundation, device inventory, private-network discovery, scheduled monitoring, conservative service checks, alerts, real-time updates, analytics, responsive accessibility, and production-readiness checks.
 
 ## Screenshots
 
 ![NetWatch overview dashboard in demo mode](docs/screenshots/overview-demo.png)
+
+![NetWatch responsive navigation on mobile](docs/screenshots/mobile-dashboard.png)
 
 ## Architecture
 
@@ -110,7 +115,9 @@ The normal bridge-network configuration is suitable for the dashboard and API. L
 | `NEW_SERVICE_ALERTS` | `true` | Alerts when an approved service is newly observed |
 | `LATENCY_ALERTS` | `true` | Alerts for substantial latency increases |
 | `CORS_ORIGINS` | `http://localhost:3000` | Comma-separated browser origins |
+| `ALLOWED_HOSTS` | `localhost,127.0.0.1` | Accepted HTTP hostnames in production |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Browser-visible API base URL |
+| `NEXT_PUBLIC_WS_URL` | `ws://localhost:8000/ws` | Browser-visible WebSocket endpoint |
 
 Configuration is validated at backend startup. Public networks, host addresses supplied as networks, IPv6 targets, overly broad ranges, unsafe intervals, and unbounded concurrency are rejected.
 
@@ -128,8 +135,11 @@ FastAPI publishes OpenAPI at `/docs` and ReDoc at `/redoc` outside production. T
 - CORS is allow-listed and credentials are disabled.
 - ORM queries and typed schemas are used for data access and validation.
 - Request sizes are bounded and responses receive defensive browser headers.
+- Production mode validates host headers, enables HSTS, and disables interactive API docs.
 - Detailed server failures are logged without exposing Python tracebacks in the UI.
 - NetWatch does not include stealth scanning, exploitation, credential attacks, or control-bypass behavior.
+
+NetWatch does not currently provide multi-user authentication. Keep it on a trusted network or place it behind an authenticated reverse proxy. See [SECURITY.md](SECURITY.md) for the deployment boundary and vulnerability reporting process.
 
 ## Limitations
 
@@ -143,14 +153,18 @@ ARP tables, ICMP permissions, hostname resolution, and interface access vary by 
 - [x] Phase 4: scheduled monitoring, state changes, events, and latency history
 - [x] Phase 5: conservative configurable service detection
 - [x] Phase 6: alert rules and alert management
-- [ ] Phase 7: live WebSocket state and reconnecting frontend client
-- [ ] Phase 8: analytics, activity, history, and network health charts
-- [ ] Phase 9: responsive and accessibility polish
-- [ ] Phase 10: complete test suite, security review, and production hardening
+- [x] Phase 7: live WebSocket state and reconnecting frontend client
+- [x] Phase 8: analytics, activity, history, and network health charts
+- [x] Phase 9: responsive and accessibility polish
+- [x] Phase 10: automated tests, security review, and production hardening
+
+## Testing
+
+The backend suite covers private-subnet validation, discovery processing, device transitions, service changes, alert creation, scan APIs, network analytics, and WebSocket events. The frontend suite covers critical rendering and reconnect behavior. GitHub Actions runs formatting, linting, typing, tests, and the production frontend build on pushes and pull requests.
 
 ## Contributing
 
-Keep networking operations inside `backend/services`, validate all scan targets, add migrations for schema changes, and include tests for state transitions. Run frontend lint/type checks and backend Ruff/Pytest before opening a pull request.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for local checks and contribution guidelines.
 
 ## License
 

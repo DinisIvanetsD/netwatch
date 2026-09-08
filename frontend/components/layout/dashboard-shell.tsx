@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -22,7 +22,12 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScanButton } from "@/components/scans/scan-button";
+import { formatRelativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import {
+  type SocketStatus,
+  useNetWatchSocket,
+} from "@/hooks/use-netwatch-socket";
 
 const navigation = [
   {
@@ -62,7 +67,15 @@ const pageNames: Record<string, string> = {
   "/settings": "Settings",
 };
 
-function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
+function SidebarContent({
+  onNavigate,
+  status,
+  scanRunning,
+}: {
+  onNavigate?: () => void;
+  status: SocketStatus;
+  scanRunning: boolean;
+}) {
   const pathname = usePathname();
 
   return (
@@ -131,7 +144,13 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                 className="size-3 text-emerald-400"
                 aria-hidden="true"
               />
-              Manual ready
+              {scanRunning
+                ? "Scan running"
+                : status === "connected"
+                  ? "Live connected"
+                  : status === "offline"
+                    ? "Offline"
+                    : "Connecting"}
             </p>
           </div>
           <span className="text-muted-foreground font-mono text-[10px]">
@@ -146,17 +165,40 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 export function DashboardShell({
   children,
   demoMode,
-}: Readonly<{ children: React.ReactNode; demoMode: boolean }>) {
+  lastCompletedScan,
+  scanRunning,
+  activeAlerts,
+}: Readonly<{
+  children: React.ReactNode;
+  demoMode: boolean;
+  lastCompletedScan: string | null;
+  scanRunning: boolean;
+  activeAlerts: number;
+}>) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { status } = useNetWatchSocket();
   const pathname = usePathname();
   const currentPage = pathname.startsWith("/devices/")
     ? "Device Details"
     : (pageNames[pathname] ?? "NetWatch");
 
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = "";
+    };
+  }, [mobileOpen]);
+
   return (
     <div className="bg-background min-h-dvh">
       <aside className="border-border bg-card fixed inset-y-0 start-0 z-40 hidden w-60 border-e lg:block">
-        <SidebarContent />
+        <SidebarContent status={status} scanRunning={scanRunning} />
       </aside>
 
       {mobileOpen ? (
@@ -166,7 +208,12 @@ export function DashboardShell({
             aria-label="Close navigation"
             onClick={() => setMobileOpen(false)}
           />
-          <aside className="border-border bg-card relative h-full w-72 border-e shadow-2xl">
+          <aside
+            className="border-border bg-card relative h-full w-72 border-e shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Navigation menu"
+          >
             <Button
               variant="ghost"
               size="icon"
@@ -176,7 +223,11 @@ export function DashboardShell({
             >
               <X />
             </Button>
-            <SidebarContent onNavigate={() => setMobileOpen(false)} />
+            <SidebarContent
+              status={status}
+              scanRunning={scanRunning}
+              onNavigate={() => setMobileOpen(false)}
+            />
           </aside>
         </div>
       ) : null}
@@ -194,23 +245,36 @@ export function DashboardShell({
           </Button>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">{currentPage}</p>
-            <p className="text-muted-foreground hidden text-xs sm:block">
-              Network status: configuration required
+            <p
+              className="text-muted-foreground hidden text-xs sm:block"
+              aria-live="polite"
+            >
+              Network status: {status === "connected" ? "live" : status}
             </p>
           </div>
           <div className="ms-auto flex items-center gap-2">
             {demoMode ? <Badge variant="warning">DEMO MODE</Badge> : null}
             <p className="text-muted-foreground hidden text-xs xl:block">
-              Last scan: never
+              Last scan:{" "}
+              {lastCompletedScan
+                ? formatRelativeTime(lastCompletedScan)
+                : "never"}
             </p>
             <ScanButton />
             <Button
               variant="ghost"
               size="icon"
-              aria-label="Notifications"
-              disabled
+              asChild
+              aria-label={`${activeAlerts} active alerts`}
             >
-              <Bell />
+              <Link href="/alerts" className="relative">
+                <Bell />
+                {activeAlerts ? (
+                  <span className="bg-destructive absolute end-0 top-0 grid size-4 place-items-center rounded-full text-[9px] font-bold text-white">
+                    {Math.min(activeAlerts, 9)}
+                  </span>
+                ) : null}
+              </Link>
             </Button>
             <Button
               variant="ghost"
@@ -224,7 +288,11 @@ export function DashboardShell({
             </Button>
           </div>
         </header>
-        <main className="mx-auto w-full max-w-[1600px] p-4 md:p-6 lg:p-8">
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="mx-auto w-full max-w-[1600px] p-4 outline-none md:p-6 lg:p-8"
+        >
           {children}
         </main>
       </div>

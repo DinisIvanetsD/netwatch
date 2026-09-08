@@ -51,6 +51,13 @@ export function ScanButton() {
         onClick={handleScan}
         disabled={scanning}
         title={error ?? undefined}
+        aria-label={
+          scanning
+            ? "Network scan in progress"
+            : error
+              ? "Try network scan again"
+              : "Scan network"
+        }
       >
         {scanning ? <LoaderCircle className="animate-spin" /> : <ScanLine />}
         <span className="hidden sm:inline">

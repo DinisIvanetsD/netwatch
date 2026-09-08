@@ -36,3 +36,9 @@ def test_approved_service_ports_are_validated_and_deduplicated() -> None:
 
     with pytest.raises(ValueError, match="valid TCP ports"):
         _ = Settings(service_ports="0").approved_service_ports
+
+
+def test_production_rejects_wildcard_allowed_hosts() -> None:
+    configured = Settings(netwatch_env="production", allowed_hosts="*")
+    with pytest.raises(ValueError, match="cannot contain"):
+        _ = configured.allowed_host_list

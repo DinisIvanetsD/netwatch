@@ -8,24 +8,41 @@ import {
 } from "lucide-react";
 
 import { DeviceTable } from "@/components/devices/device-table";
+import { NetworkActivityChart } from "@/components/charts/network-activity-chart";
 import { MetricCard } from "@/components/metric-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getAlerts, getDevices } from "@/lib/api";
+import {
+  getAlerts,
+  getDevices,
+  getNetworkActivity,
+  getNetworkStatus,
+} from "@/lib/api";
 
 export const metadata = { title: "Overview" };
 export const dynamic = "force-dynamic";
 
-export default async function DashboardPage() {
-  const subnet = process.env.NETWATCH_SUBNET ?? "Not configured";
-  const [allDevices, onlineDevices, offlineDevices, alerts] = await Promise.all(
-    [
+const ranges = { "1H": 1, "6H": 6, "24H": 24, "7D": 168 } as const;
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ range?: string }>;
+}) {
+  const { range: requestedRange } = await searchParams;
+  const range =
+    requestedRange && requestedRange in ranges
+      ? (requestedRange as keyof typeof ranges)
+      : "24H";
+  const [allDevices, onlineDevices, offlineDevices, alerts, activity, network] =
+    await Promise.all([
       getDevices({ perPage: 5, sortBy: "last_seen", sortOrder: "desc" }),
       getDevices({ perPage: 1, status: "online" }),
       getDevices({ perPage: 1, status: "offline" }),
       getAlerts(),
-    ],
-  );
+      getNetworkActivity(ranges[range]),
+      getNetworkStatus(),
+    ]);
   const activeAlerts = alerts.items.filter((alert) => !alert.resolved);
   const availability = allDevices.total
     ? Math.round((onlineDevices.total / allDevices.total) * 100)
@@ -44,7 +61,9 @@ export default async function DashboardPage() {
         </div>
         <div className="text-sm md:text-end">
           <p className="text-muted-foreground">Network</p>
-          <p className="text-foreground mt-1 font-mono text-xs">{subnet}</p>
+          <p className="text-foreground mt-1 font-mono text-xs">
+            {network.subnet}
+          </p>
         </div>
       </div>
 
@@ -104,31 +123,36 @@ export default async function DashboardPage() {
             className="border-border bg-muted/30 flex rounded-md border p-0.5"
             aria-label="Time range unavailable"
           >
-            {["1H", "6H", "24H", "7D"].map((range) => (
-              <span
-                key={range}
+            {Object.keys(ranges).map((option) => (
+              <Link
+                key={option}
+                href={`/dashboard?range=${option}`}
                 className={`rounded px-2 py-1 text-[10px] font-medium ${
-                  range === "24H"
+                  option === range
                     ? "bg-accent text-foreground"
                     : "text-muted-foreground"
                 }`}
               >
-                {range}
-              </span>
+                {option}
+              </Link>
             ))}
           </div>
         </CardHeader>
         <CardContent className="flex min-h-72 items-center justify-center pt-5">
-          <div className="text-center">
-            <Activity
-              className="text-muted-foreground mx-auto size-6"
-              aria-hidden="true"
-            />
-            <p className="mt-3 text-sm font-medium">No activity recorded</p>
-            <p className="text-muted-foreground mt-1 text-xs">
-              Run a network scan to begin collecting metrics.
-            </p>
-          </div>
+          {activity.points.length ? (
+            <NetworkActivityChart points={activity.points} />
+          ) : (
+            <div className="text-center">
+              <Activity
+                className="text-muted-foreground mx-auto size-6"
+                aria-hidden="true"
+              />
+              <p className="mt-3 text-sm font-medium">No activity recorded</p>
+              <p className="text-muted-foreground mt-1 text-xs">
+                Run a network scan to begin collecting metrics.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 

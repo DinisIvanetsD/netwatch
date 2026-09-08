@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     new_service_alerts: bool = True
     latency_alerts: bool = True
     cors_origins: str = "http://localhost:3000"
+    allowed_hosts: str = "localhost,127.0.0.1"
     max_request_size_bytes: int = 1_048_576
 
     @field_validator("database_url", mode="before")
@@ -83,6 +84,15 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
+    def allowed_host_list(self) -> list[str]:
+        hosts = [host.strip() for host in self.allowed_hosts.split(",") if host.strip()]
+        if not hosts:
+            raise ValueError("ALLOWED_HOSTS must contain at least one hostname")
+        if self.netwatch_env == "production" and "*" in hosts:
+            raise ValueError("ALLOWED_HOSTS cannot contain '*' in production")
+        return hosts
 
     @property
     def approved_service_ports(self) -> tuple[int, ...]:

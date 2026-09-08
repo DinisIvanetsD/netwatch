@@ -3,6 +3,7 @@ import type { Device, DeviceListResponse, DeviceQuery } from "@/types/device";
 import type { Scan } from "@/types/scan";
 import type { ServiceListResponse } from "@/types/service";
 import type { NetWatchSettings } from "@/types/settings";
+import type { NetworkActivity, NetworkStatus } from "@/types/network";
 import type { Alert, AlertListResponse } from "@/types/alert";
 import type {
   EventListResponse,
@@ -71,6 +72,8 @@ export async function getEvents(
     severity?: EventSeverity;
     type?: EventType;
     perPage?: number;
+    fromTime?: string;
+    toTime?: string;
   } = {},
 ): Promise<EventListResponse> {
   const params = new URLSearchParams();
@@ -78,6 +81,8 @@ export async function getEvents(
   if (query.severity) params.set("severity", query.severity);
   if (query.type) params.set("type", query.type);
   if (query.perPage) params.set("per_page", String(query.perPage));
+  if (query.fromTime) params.set("from_time", query.fromTime);
+  if (query.toTime) params.set("to_time", query.toTime);
   const suffix = params.size ? `?${params.toString()}` : "";
   return request<EventListResponse>(`/api/events${suffix}`);
 }
@@ -137,4 +142,12 @@ export async function updateAlertSettings(
     headers: { Accept: "application/json", "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+}
+
+export async function getNetworkStatus(): Promise<NetworkStatus> {
+  return request<NetworkStatus>("/api/network/status");
+}
+
+export async function getNetworkActivity(hours = 24): Promise<NetworkActivity> {
+  return request<NetworkActivity>(`/api/network/activity?hours=${hours}`);
 }

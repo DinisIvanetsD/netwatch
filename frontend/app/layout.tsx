@@ -32,6 +32,12 @@ export default function RootLayout({
       className={`dark ${geistSans.variable} ${geistMono.variable}`}
     >
       <body className={`${geistSans.className} min-h-dvh antialiased`}>
+        <a
+          href="#main-content"
+          className="focus:bg-primary focus:text-primary-foreground fixed start-3 top-3 z-[100] -translate-y-20 rounded-md px-3 py-2 text-sm font-medium transition-transform focus:translate-y-0"
+        >
+          Skip to main content
+        </a>
         {children}
       </body>
     </html>

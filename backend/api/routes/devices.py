@@ -11,6 +11,7 @@ from database.session import get_session
 from models.device import DeviceSource, DeviceStatus
 from models.event import Event
 from models.metric import DeviceMetric
+from models.service import Service
 from schemas.device import DeviceListResponse, DeviceResponse, DeviceSortField, SortOrder
 from schemas.history import EventListResponse, EventResponse, MetricListResponse, MetricResponse
 
@@ -42,8 +43,23 @@ async def list_devices(
         sort_by=sort_by,
         sort_order=sort_order,
     )
+    service_rows = (
+        await session.execute(
+            select(Service.device_id, Service.port).where(
+                Service.device_id.in_([device.id for device in devices]), Service.active.is_(True)
+            )
+        )
+    ).all()
+    ports_by_device: dict[int, list[int]] = {}
+    for device_id, port in service_rows:
+        ports_by_device.setdefault(device_id, []).append(port)
     return DeviceListResponse(
-        items=[DeviceResponse.model_validate(device) for device in devices],
+        items=[
+            DeviceResponse.model_validate(device).model_copy(
+                update={"service_ports": sorted(ports_by_device.get(device.id, []))}
+            )
+            for device in devices
+        ],
         page=page,
         per_page=per_page,
         total=total,
@@ -59,7 +75,16 @@ async def get_device(device_id: int, session: SessionDependency) -> DeviceRespon
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Device not found.",
         )
-    return DeviceResponse.model_validate(device)
+    ports = list(
+        (
+            await session.scalars(
+                select(Service.port)
+                .where(Service.device_id == device.id, Service.active.is_(True))
+                .order_by(Service.port)
+            )
+        ).all()
+    )
+    return DeviceResponse.model_validate(device).model_copy(update={"service_ports": ports})
 
 
 @router.get("/{device_id}/metrics", response_model=MetricListResponse)

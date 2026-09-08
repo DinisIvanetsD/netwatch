@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from api.router import api_router, websocket_router
 from core.config import settings
@@ -43,8 +44,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(
+    SecurityHeadersMiddleware,
+    production=settings.netwatch_env == "production",
+)
 app.add_middleware(RequestSizeLimitMiddleware, max_bytes=settings.max_request_size_bytes)
+if settings.netwatch_env == "production":
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_host_list)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
