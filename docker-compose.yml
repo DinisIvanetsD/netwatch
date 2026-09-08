@@ -19,6 +19,7 @@ services:
       SERVICE_PORTS: ${SERVICE_PORTS:-22,53,80,443,445,3389}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      NETWATCH_SECRET_KEY: ${NETWATCH_SECRET_KEY:-}
     ports:
       - "8000:8000"
     volumes:

@@ -58,7 +58,8 @@ export function DataSettingsForm({ initial }: { initial: NetWatchSettings }) {
         result.metrics_deleted +
         result.events_deleted +
         result.alerts_deleted +
-        result.scans_deleted;
+        result.scans_deleted +
+        result.internet_activity_deleted;
       setMessage(
         `${total} historical records removed. Devices and services were kept.`,
       );
@@ -98,16 +99,17 @@ export function DataSettingsForm({ initial }: { initial: NetWatchSettings }) {
           </Button>
         </div>
         <p className="text-muted-foreground mt-2 text-xs">
-          Expired metrics, events, alerts, and scan records are pruned after
-          scans.
+          Expired metrics, events, alerts, DNS activity, and scan records are
+          pruned after scans.
         </p>
       </div>
 
       <div className="border-border border-t pt-5">
         <p className="text-sm font-medium">Clear historical data</p>
         <p className="text-muted-foreground mt-1 text-xs leading-5">
-          Removes metrics, events, alerts, and completed scan records. Device
-          inventory and currently detected services remain available.
+          Removes metrics, events, alerts, DNS activity, and completed scan
+          records. Device inventory and currently detected services remain
+          available.
         </p>
         <AlertDialog>
           <AlertDialogTrigger asChild>

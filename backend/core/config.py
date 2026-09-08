@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000"
     allowed_hosts: str = "localhost,127.0.0.1"
     max_request_size_bytes: int = 1_048_576
+    netwatch_secret_key: str | None = None
 
     @field_validator("database_url", mode="before")
     @classmethod

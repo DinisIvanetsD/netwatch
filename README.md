@@ -18,6 +18,9 @@ NetWatch is an open-source, self-hosted network monitoring dashboard for discove
 - Live dashboard updates with reconnecting WebSocket transport
 - Historical activity charts, device metrics, event filters, and LAN mapping
 - Runtime-editable network, scanner, alert, service, and retention settings
+- Capability-aware provider architecture that never invents unsupported controls
+- AdGuard Home integration for real DNS query metadata, statistics, and global domain rules
+- Per-device Internet activity with DNS-derived categories and blocked-request status
 - Confirmed historical-data cleanup that preserves device and service inventory
 - Automated backend and frontend checks through GitHub Actions
 - Docker Compose development and deployment path
@@ -40,6 +43,8 @@ flowchart LR
     Services --> Discovery[OS discovery adapters]
     Services --> Scanner[Authorized TCP checks]
     Services --> Alerts[Alert rules]
+    Services --> Providers[DNS / router providers]
+    Providers --> AdGuard[AdGuard Home]
     API <--> DB[(SQLite / PostgreSQL)]
     Services <--> DB
 ```
@@ -119,11 +124,20 @@ The normal bridge-network configuration is suitable for the dashboard and API. L
 | `RETENTION_DAYS` | `30` | Days to retain metrics, events, alerts, and scan records |
 | `CORS_ORIGINS` | `http://localhost:3000` | Comma-separated browser origins |
 | `ALLOWED_HOSTS` | `localhost,127.0.0.1` | Accepted HTTP hostnames in production |
+| `NETWATCH_SECRET_KEY` | none | Fernet key required to encrypt provider passwords at rest |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Browser-visible API base URL |
 | `NEXT_PUBLIC_WS_URL` | `ws://localhost:8000/ws` | Browser-visible WebSocket endpoint |
 | `NETWATCH_INTERNAL_API_URL` | `http://backend:8000` in Compose | Backend URL used by server-rendered frontend pages |
 
 Configuration is validated at backend startup. Public networks, host addresses supplied as networks, IPv6 targets, overly broad ranges, unsafe intervals, and unbounded concurrency are rejected.
+
+Generate `NETWATCH_SECRET_KEY` before saving an integration:
+
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+AdGuard Home is configured from **Settings → AdGuard Home integration**. Enter the local server root URL (for example `http://192.168.1.2:3000`), not a `/control` path. NetWatch accepts only local/private provider destinations.
 
 ## Demo Mode
 
@@ -143,6 +157,8 @@ Runtime configuration is available through `GET /api/settings` and `PATCH /api/s
 - Request sizes are bounded and responses receive defensive browser headers.
 - Production mode validates host headers, enables HSTS, and disables interactive API docs.
 - Detailed server failures are logged without exposing Python tracebacks in the UI.
+- Provider passwords are encrypted at rest and are never returned by the API.
+- Provider URLs are restricted to local destinations to reduce server-side request-forgery risk.
 - NetWatch does not include stealth scanning, exploitation, credential attacks, or control-bypass behavior.
 
 NetWatch does not currently provide multi-user authentication. Keep it on a trusted network or place it behind an authenticated reverse proxy. See [SECURITY.md](SECURITY.md) for the deployment boundary and vulnerability reporting process.
@@ -150,6 +166,8 @@ NetWatch does not currently provide multi-user authentication. Keep it on a trus
 ## Limitations
 
 ARP tables, ICMP permissions, hostname resolution, and interface access vary by host OS and container runtime. Discovery will use replaceable platform adapters and report unsupported capabilities explicitly. A flat LAN does not reveal physical switch topology, so NetWatch will only render a gateway-centered discovered-device map unless stronger evidence is available.
+
+Internet Activity currently represents DNS request metadata supplied by AdGuard Home. It does not inspect packet contents, prove that a website was opened, or measure upload/download bytes. Devices that bypass the configured DNS provider will not appear in this view.
 
 ## Roadmap
 

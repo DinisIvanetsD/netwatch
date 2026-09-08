@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   Clock3,
   History,
+  Globe2,
   Network,
   Radar,
 } from "lucide-react";
@@ -20,6 +21,7 @@ import {
   getDeviceMetrics,
   getDeviceServices,
   getEvents,
+  getInternetActivity,
 } from "@/lib/api";
 import { formatDate, formatLatency, formatRelativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -27,7 +29,13 @@ import { cn } from "@/lib/utils";
 export const metadata = { title: "Device Details" };
 export const dynamic = "force-dynamic";
 
-const tabs = ["overview", "services", "activity", "history"] as const;
+const tabs = [
+  "overview",
+  "services",
+  "internet",
+  "activity",
+  "history",
+] as const;
 type DeviceTab = (typeof tabs)[number];
 
 async function loadDevice(id: number) {
@@ -58,13 +66,15 @@ export default async function DeviceDetailPage({
     ? (rawTab as DeviceTab)
     : "overview";
   const displayName = device.name ?? device.hostname ?? device.ip_address;
-  const [eventHistory, metricHistory, serviceHistory] = await Promise.all([
-    activeTab === "activity"
-      ? getEvents({ deviceId: device.id, perPage: 50 })
-      : null,
-    activeTab === "history" ? getDeviceMetrics(device.id, 200) : null,
-    activeTab === "services" ? getDeviceServices(device.id) : null,
-  ]);
+  const [eventHistory, metricHistory, serviceHistory, internetHistory] =
+    await Promise.all([
+      activeTab === "activity"
+        ? getEvents({ deviceId: device.id, perPage: 50 })
+        : null,
+      activeTab === "history" ? getDeviceMetrics(device.id, 200) : null,
+      activeTab === "services" ? getDeviceServices(device.id) : null,
+      activeTab === "internet" ? getInternetActivity(device.id) : null,
+    ]);
 
   return (
     <div className="space-y-6">
@@ -227,6 +237,43 @@ export default async function DeviceDetailPage({
             icon={Activity}
             title="No device activity"
             description="State changes and network events associated with this device will appear here."
+          />
+        )
+      ) : null}
+      {activeTab === "internet" ? (
+        internetHistory?.items.length ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Internet activity</CardTitle>
+            </CardHeader>
+            <CardContent className="divide-border divide-y p-0">
+              {internetHistory.items.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-sm"
+                >
+                  <div>
+                    <p className="font-mono">{item.domain}</p>
+                    <p className="text-muted-foreground mt-1 text-xs capitalize">
+                      {item.category} · {formatRelativeTime(item.timestamp)}
+                    </p>
+                  </div>
+                  <span
+                    className={
+                      item.blocked ? "text-amber-300" : "text-emerald-400"
+                    }
+                  >
+                    {item.blocked ? "Blocked" : "Allowed"}
+                  </span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ) : (
+          <EmptyState
+            icon={Globe2}
+            title="No DNS activity for this device"
+            description="DNS metadata appears here only when a supported provider is configured and the client IP matches this device."
           />
         )
       ) : null}

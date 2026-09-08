@@ -14,6 +14,7 @@ from models.event import Event, EventSeverity, EventType
 from models.metric import DeviceMetric
 from models.scan import Scan, ScanStatus
 from models.service import Service
+from services.activity import sync_dns_activity
 from services.alerts.engine import create_alert
 from services.discovery.base import DiscoveryAdapter, DiscoveryResult
 from services.discovery.system import SystemDiscoveryAdapter
@@ -311,8 +312,14 @@ class ScanService:
                     "severity": alert.severity.value,
                 },
             )
+        internet_activity_added = await sync_dns_activity()
         await connection_manager.broadcast(
-            "scan.completed", {"scan_id": scan_id, "devices_found": len(results)}
+            "scan.completed",
+            {
+                "scan_id": scan_id,
+                "devices_found": len(results),
+                "internet_activity_added": internet_activity_added,
+            },
         )
 
     @staticmethod

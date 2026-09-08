@@ -2,15 +2,19 @@ import { ServiceSettingsForm } from "@/components/settings/service-settings-form
 import { AlertSettingsForm } from "@/components/settings/alert-settings-form";
 import { DataSettingsForm } from "@/components/settings/data-settings-form";
 import { ScannerSettingsForm } from "@/components/settings/scanner-settings-form";
+import { AdGuardSettingsForm } from "@/components/settings/adguard-settings-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getSettings } from "@/lib/api";
+import { getAdGuardConfiguration, getSettings } from "@/lib/api";
 
 export const metadata = { title: "Settings" };
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const settings = await getSettings();
+  const [settings, adGuard] = await Promise.all([
+    getSettings(),
+    getAdGuardConfiguration(),
+  ]);
   return (
     <div className="space-y-6">
       <div>
@@ -26,6 +30,14 @@ export default async function SettingsPage() {
           </CardHeader>
           <CardContent>
             <ScannerSettingsForm initial={settings} />
+          </CardContent>
+        </Card>
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>AdGuard Home integration</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <AdGuardSettingsForm initial={adGuard} />
           </CardContent>
         </Card>
         <Card>

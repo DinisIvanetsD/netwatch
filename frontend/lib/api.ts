@@ -4,7 +4,16 @@ import type { Scan } from "@/types/scan";
 import type { ServiceListResponse } from "@/types/service";
 import type { HistoryClearResult, NetWatchSettings } from "@/types/settings";
 import type { NetworkActivity, NetworkStatus } from "@/types/network";
+import type {
+  InternetActivityList,
+  InternetActivitySummary,
+} from "@/types/internet-activity";
 import type { Alert, AlertListResponse } from "@/types/alert";
+import type {
+  AdGuardConfigurationInput,
+  AdGuardIntegration,
+  ProviderStatus,
+} from "@/types/integration";
 import type {
   EventListResponse,
   EventSeverity,
@@ -169,4 +178,50 @@ export async function getNetworkStatus(): Promise<NetworkStatus> {
 
 export async function getNetworkActivity(hours = 24): Promise<NetworkActivity> {
   return request<NetworkActivity>(`/api/network/activity?hours=${hours}`);
+}
+
+export async function getAdGuardConfiguration(): Promise<AdGuardIntegration | null> {
+  try {
+    return await request<AdGuardIntegration>("/api/integrations/adguard");
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+export async function configureAdGuard(
+  payload: AdGuardConfigurationInput,
+): Promise<AdGuardIntegration> {
+  return request<AdGuardIntegration>("/api/integrations/adguard", {
+    method: "PUT",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function testAdGuard(payload: {
+  server_url: string;
+  username: string;
+  password: string;
+}): Promise<{
+  status: ProviderStatus;
+  message: string;
+  version: string | null;
+}> {
+  return request("/api/integrations/adguard/test", {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getInternetActivity(
+  deviceId?: number,
+): Promise<InternetActivityList> {
+  const query = deviceId ? `?device_id=${deviceId}` : "";
+  return request<InternetActivityList>(`/api/internet-activity${query}`);
+}
+
+export async function getInternetActivitySummary(): Promise<InternetActivitySummary> {
+  return request<InternetActivitySummary>("/api/internet-activity/summary");
 }

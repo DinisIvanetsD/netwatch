@@ -350,6 +350,7 @@ async def test_clear_history_preserves_inventory_and_services(
         "events_deleted": 1,
         "alerts_deleted": 1,
         "scans_deleted": 1,
+        "internet_activity_deleted": 0,
     }
     assert device_client.get("/api/devices").json()["total"] == 1
     assert device_client.get("/api/services").json()["total"] == 1

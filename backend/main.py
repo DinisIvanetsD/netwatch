@@ -11,6 +11,7 @@ from core.logging import configure_logging
 from core.middleware import RequestSizeLimitMiddleware, SecurityHeadersMiddleware
 from database.session import close_database
 from services.demo import seed_demo_alerts, seed_demo_devices, seed_demo_history, seed_demo_services
+from services.integrations import load_provider_integrations
 from services.monitoring.engine import monitoring_engine
 from services.scanner.coordinator import scan_coordinator
 from services.settings import load_persisted_settings
@@ -21,6 +22,7 @@ configure_logging()
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     await load_persisted_settings()
+    await load_provider_integrations()
     await seed_demo_devices()
     await seed_demo_history()
     await seed_demo_services()

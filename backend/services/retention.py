@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.alert import Alert
 from models.event import Event
+from models.internet_activity import InternetActivity
 from models.metric import DeviceMetric
 from models.scan import Scan
 
@@ -16,6 +17,7 @@ class RetentionResult:
     events_deleted: int
     alerts_deleted: int
     scans_deleted: int
+    internet_activity_deleted: int
 
 
 async def clear_historical_data(
@@ -28,21 +30,25 @@ async def clear_historical_data(
     event_query = delete(Event).execution_options(**query_options)
     alert_query = delete(Alert).execution_options(**query_options)
     scan_query = delete(Scan).execution_options(**query_options)
+    internet_query = delete(InternetActivity).execution_options(**query_options)
     if older_than is not None:
         metric_query = metric_query.where(DeviceMetric.timestamp < older_than)
         event_query = event_query.where(Event.timestamp < older_than)
         alert_query = alert_query.where(Alert.created_at < older_than)
         scan_query = scan_query.where(Scan.created_at < older_than)
+        internet_query = internet_query.where(InternetActivity.timestamp < older_than)
 
     alerts = await session.execute(alert_query)
     events = await session.execute(event_query)
     metrics = await session.execute(metric_query)
     scans = await session.execute(scan_query)
+    internet_activity = await session.execute(internet_query)
     return RetentionResult(
         metrics_deleted=metrics.rowcount or 0,
         events_deleted=events.rowcount or 0,
         alerts_deleted=alerts.rowcount or 0,
         scans_deleted=scans.rowcount or 0,
+        internet_activity_deleted=internet_activity.rowcount or 0,
     )
 
 

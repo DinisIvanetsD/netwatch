@@ -18,4 +18,5 @@ export interface HistoryClearResult {
   events_deleted: number;
   alerts_deleted: number;
   scans_deleted: number;
+  internet_activity_deleted: number;
 }

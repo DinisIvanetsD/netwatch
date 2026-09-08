@@ -50,3 +50,4 @@ class HistoryClearResponse(BaseModel):
     events_deleted: int
     alerts_deleted: int
     scans_deleted: int
+    internet_activity_deleted: int

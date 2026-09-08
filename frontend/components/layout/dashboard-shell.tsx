@@ -10,6 +10,7 @@ import {
   CircleDot,
   Gauge,
   History,
+  Globe2,
   Menu,
   Network,
   Radar,
@@ -47,6 +48,7 @@ const navigation = [
     label: "Analysis",
     items: [
       { href: "/activity", label: "Activity", icon: Activity },
+      { href: "/internet", label: "Internet", icon: Globe2 },
       { href: "/history", label: "History", icon: History },
     ],
   },
@@ -63,6 +65,7 @@ const pageNames: Record<string, string> = {
   "/services": "Services",
   "/alerts": "Alerts",
   "/activity": "Activity",
+  "/internet": "Internet Activity",
   "/history": "History",
   "/settings": "Settings",
 };
