@@ -1,5 +1,5 @@
 from collections.abc import AsyncIterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -16,6 +16,7 @@ from models.event import Event, EventSeverity, EventType
 from models.metric import DeviceMetric
 from models.scan import Scan, ScanStatus
 from models.service import Service
+from services.retention import prune_expired_history
 
 
 @pytest.fixture
@@ -352,3 +353,40 @@ async def test_clear_history_preserves_inventory_and_services(
     }
     assert device_client.get("/api/devices").json()["total"] == 1
     assert device_client.get("/api/services").json()["total"] == 1
+
+
+async def test_retention_pruning_handles_sqlite_loaded_datetimes(
+    device_session_factory: async_sessionmaker[AsyncSession],
+) -> None:
+    now = datetime.now(UTC)
+    async with device_session_factory() as session:
+        old_scan = Scan(
+            started_at=now - timedelta(days=40),
+            finished_at=now - timedelta(days=40),
+            status=ScanStatus.COMPLETED,
+            devices_found=0,
+            duration_ms=10,
+            subnet="192.168.1.0/24",
+            source=DeviceSource.LIVE,
+            created_at=now - timedelta(days=40),
+        )
+        current_scan = Scan(
+            started_at=now,
+            status=ScanStatus.RUNNING,
+            devices_found=0,
+            subnet="192.168.1.0/24",
+            source=DeviceSource.LIVE,
+            created_at=now,
+        )
+        session.add_all([old_scan, current_scan])
+        await session.commit()
+        current_scan_id = current_scan.id
+        session.expire_all()
+
+        loaded_current_scan = await session.get(Scan, current_scan_id)
+        assert loaded_current_scan is not None
+        result = await prune_expired_history(session, retention_days=30)
+        await session.commit()
+
+        assert result.scans_deleted == 1
+        assert await session.get(Scan, current_scan_id) is not None

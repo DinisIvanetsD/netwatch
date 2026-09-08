@@ -1,6 +1,7 @@
 import asyncio
 import platform
 import re
+import shutil
 import socket
 from ipaddress import IPv4Address, IPv4Network
 
@@ -19,6 +20,11 @@ class SystemDiscoveryAdapter(DiscoveryAdapter):
         self.timeout_ms = timeout_ms
 
     async def discover(self, network: IPv4Network) -> list[DiscoveryResult]:
+        if shutil.which("ping") is None:
+            raise RuntimeError(
+                "Network discovery is unavailable because the system ping command is not installed."
+            )
+
         queue: asyncio.Queue[IPv4Address] = asyncio.Queue()
         for host in network.hosts():
             queue.put_nowait(host)

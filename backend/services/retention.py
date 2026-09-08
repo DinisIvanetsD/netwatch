@@ -23,10 +23,11 @@ async def clear_historical_data(
     *,
     older_than: datetime | None = None,
 ) -> RetentionResult:
-    metric_query = delete(DeviceMetric)
-    event_query = delete(Event)
-    alert_query = delete(Alert)
-    scan_query = delete(Scan)
+    query_options = {"synchronize_session": False}
+    metric_query = delete(DeviceMetric).execution_options(**query_options)
+    event_query = delete(Event).execution_options(**query_options)
+    alert_query = delete(Alert).execution_options(**query_options)
+    scan_query = delete(Scan).execution_options(**query_options)
     if older_than is not None:
         metric_query = metric_query.where(DeviceMetric.timestamp < older_than)
         event_query = event_query.where(Event.timestamp < older_than)
