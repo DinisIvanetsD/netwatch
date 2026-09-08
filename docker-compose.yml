@@ -1,0 +1,62 @@
+name: netwatch
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    environment:
+      NETWATCH_ENV: ${NETWATCH_ENV:-development}
+      DATABASE_URL: ${DATABASE_URL:-sqlite+aiosqlite:///./data/netwatch.db}
+      DATABASE_ECHO: ${DATABASE_ECHO:-false}
+      NETWATCH_DEMO_MODE: ${NETWATCH_DEMO_MODE:-false}
+      NETWATCH_SUBNET: ${NETWATCH_SUBNET:-192.168.1.0/24}
+      SCAN_INTERVAL: ${SCAN_INTERVAL:-60}
+      SCAN_CONCURRENCY: ${SCAN_CONCURRENCY:-32}
+      OFFLINE_AFTER_MISSED_SCANS: ${OFFLINE_AFTER_MISSED_SCANS:-3}
+      MONITORING_ENABLED: ${MONITORING_ENABLED:-true}
+      SERVICE_SCAN_ENABLED: ${SERVICE_SCAN_ENABLED:-true}
+      SERVICE_PORTS: ${SERVICE_PORTS:-22,53,80,443,445,3389}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+    ports:
+      - "8000:8000"
+    volumes:
+      - netwatch-data:/app/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    environment:
+      NETWATCH_DEMO_MODE: ${NETWATCH_DEMO_MODE:-false}
+      NETWATCH_SUBNET: ${NETWATCH_SUBNET:-192.168.1.0/24}
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  netwatch-data:
