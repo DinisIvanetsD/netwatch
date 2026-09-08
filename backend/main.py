@@ -9,8 +9,17 @@ from api.router import api_router, websocket_router
 from core.config import settings
 from core.logging import configure_logging
 from core.middleware import RequestSizeLimitMiddleware, SecurityHeadersMiddleware
-from database.session import close_database
-from services.demo import seed_demo_alerts, seed_demo_devices, seed_demo_history, seed_demo_services
+from database.session import SessionLocal, close_database
+from models.device import DeviceSource
+from services.control.rules import reconcile_all_rules
+from services.control.seed import seed_default_control_profiles
+from services.demo import (
+    seed_demo_alerts,
+    seed_demo_devices,
+    seed_demo_history,
+    seed_demo_internet_activity,
+    seed_demo_services,
+)
 from services.integrations import load_provider_integrations
 from services.monitoring.engine import monitoring_engine
 from services.scanner.coordinator import scan_coordinator
@@ -23,9 +32,15 @@ configure_logging()
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     await load_persisted_settings()
     await load_provider_integrations()
+    await seed_default_control_profiles()
+    async with SessionLocal() as session:
+        source = DeviceSource.DEMO if settings.netwatch_demo_mode else DeviceSource.LIVE
+        await reconcile_all_rules(session, source)
+        await session.commit()
     await seed_demo_devices()
     await seed_demo_history()
     await seed_demo_services()
+    await seed_demo_internet_activity()
     await seed_demo_alerts()
     if settings.monitoring_enabled:
         monitoring_engine.start()
@@ -57,7 +72,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
     allow_credentials=False,
-    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Accept", "Content-Type"],
 )
 

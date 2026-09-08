@@ -7,6 +7,8 @@ export interface NetWatchSettings {
   service_ports: number[];
   offline_after_missed_scans: number;
   new_device_alerts: boolean;
+  new_device_policy:
+    "allow" | "allow_alert" | "quarantine_alert" | "block_alert";
   device_offline_alerts: boolean;
   new_service_alerts: boolean;
   latency_alerts: boolean;

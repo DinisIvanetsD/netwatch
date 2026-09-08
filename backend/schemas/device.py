@@ -36,6 +36,15 @@ class DeviceResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     is_gateway: bool
+    device_type: str | None
+    owner: str | None
+    profile_id: int | None
+    trust_state: str
+    internet_access: str
+    lan_access: str
+    paused_until: datetime | None
+    quarantine_reason: str | None
+    quarantined_at: datetime | None
     service_ports: list[int] = Field(default_factory=list)
 
     @field_validator("ip_address")
@@ -47,6 +56,13 @@ class DeviceResponse(BaseModel):
     @classmethod
     def ensure_utc_timezone(cls, value: datetime) -> datetime:
         return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+    @field_validator("paused_until", "quarantined_at", mode="after")
+    @classmethod
+    def ensure_optional_utc_timezone(cls, value: datetime | None) -> datetime | None:
+        if value is None or value.tzinfo is not None:
+            return value
+        return value.replace(tzinfo=UTC)
 
 
 class DeviceListResponse(BaseModel):

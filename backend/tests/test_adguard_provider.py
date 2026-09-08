@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime
 
 import httpx
@@ -6,7 +7,11 @@ from cryptography.fernet import Fernet
 
 from core.credentials import CredentialCipher, CredentialConfigurationError
 from services.providers.common import ProviderStatus
-from services.providers.dns import AdGuardHomeProvider, DomainRuleRequest
+from services.providers.dns import (
+    AdGuardHomeProvider,
+    DomainRuleRequest,
+    SafeSearchSettings,
+)
 from services.providers.dns.adguard import normalize_domain
 from services.providers.validation import (
     ProviderURLValidationError,
@@ -98,6 +103,111 @@ async def test_adguard_accepts_empty_rules_from_new_installation() -> None:
         await provider.add_domain_rule(DomainRuleRequest(domain="first.example", allow=False))
 
     assert requests[-1].content == b'{"rules":["||first.example^"]}'
+
+
+async def test_adguard_renders_private_client_rules_and_rejects_public_clients() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.method == "GET":
+            return httpx.Response(200, json={"user_rules": []})
+        return httpx.Response(200)
+
+    async with _client(httpx.MockTransport(handler)) as client:
+        provider = AdGuardHomeProvider("http://127.0.0.1", "admin", "secret", client=client)
+        await provider.add_domain_rule(
+            DomainRuleRequest(
+                domain="example.org",
+                allow=False,
+                clients=("192.168.1.25", "10.0.0.8"),
+            )
+        )
+        with pytest.raises(ValueError, match="local IP"):
+            await provider.add_domain_rule(
+                DomainRuleRequest(
+                    domain="example.org",
+                    allow=False,
+                    clients=("8.8.8.8",),
+                )
+            )
+
+    assert requests[1].content == b'{"rules":["||example.org^$client=10.0.0.8|192.168.1.25"]}'
+
+
+async def test_adguard_managed_rule_update_and_removal_preserves_manual_rules() -> None:
+    rules = ["||manual.example^"]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal rules
+        if request.method == "GET":
+            return httpx.Response(200, json={"user_rules": rules})
+        rules = list(json.loads(request.content)["rules"])
+        return httpx.Response(200)
+
+    async with _client(httpx.MockTransport(handler)) as client:
+        provider = AdGuardHomeProvider("http://127.0.0.1", "admin", "secret", client=client)
+        await provider.upsert_managed_domain_rule(
+            "domain-rule-7",
+            DomainRuleRequest(domain="first.example", allow=False),
+        )
+        await provider.upsert_managed_domain_rule(
+            "domain-rule-7",
+            DomainRuleRequest(domain="second.example", allow=False),
+        )
+        removed = await provider.remove_managed_domain_rule("domain-rule-7")
+
+    assert removed is True
+    assert rules == ["||manual.example^"]
+
+
+async def test_adguard_reads_and_updates_safe_search() -> None:
+    put_payload: dict[str, bool] | None = None
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal put_payload
+        if request.method == "PUT":
+            put_payload = json.loads(request.content)
+            return httpx.Response(200)
+        return httpx.Response(
+            200,
+            json={
+                "enabled": True,
+                "google": True,
+                "bing": True,
+                "youtube": True,
+                "duckduckgo": False,
+                "ecosia": False,
+                "pixabay": False,
+                "yandex": False,
+            },
+        )
+
+    requested = SafeSearchSettings(
+        enabled=True,
+        google=True,
+        bing=True,
+        youtube=True,
+        duckduckgo=False,
+        ecosia=False,
+        pixabay=False,
+        yandex=False,
+    )
+    async with _client(httpx.MockTransport(handler)) as client:
+        provider = AdGuardHomeProvider("http://127.0.0.1", "admin", "secret", client=client)
+        result = await provider.set_safe_search(requested)
+
+    assert put_payload == {
+        "enabled": True,
+        "google": True,
+        "bing": True,
+        "youtube": True,
+        "duckduckgo": False,
+        "ecosia": False,
+        "pixabay": False,
+        "yandex": False,
+    }
+    assert result == requested
 
 
 def test_credentials_are_encrypted_and_invalid_keys_fail_closed() -> None:

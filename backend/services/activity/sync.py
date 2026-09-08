@@ -6,9 +6,10 @@ from sqlalchemy import select
 from database.session import SessionLocal
 from models.device import Device, DeviceSource
 from models.internet_activity import InternetActivity
-from services.activity.classification import classify_domain
+from services.activity.classification import domain_classification_service
 from services.providers.dns import DNSCapability, DNSQueryRecord
 from services.providers.registry import provider_registry
+from services.realtime.manager import connection_manager
 
 logger = logging.getLogger(__name__)
 
@@ -25,27 +26,27 @@ async def sync_dns_activity(limit: int = 500) -> int:
 
     async with SessionLocal() as session:
         devices = {
-            device.ip_address: device.id
+            device.ip_address: device
             for device in (
                 await session.scalars(select(Device).where(Device.source == DeviceSource.LIVE))
             ).all()
         }
-        pending: dict[str, tuple[int, DNSQueryRecord]] = {}
+        pending: dict[str, tuple[Device, DNSQueryRecord]] = {}
         for record in records:
-            device_id = devices.get(record.client)
-            if device_id is None:
+            device = devices.get(record.client)
+            if device is None:
                 continue
             raw_key = "|".join(
                 (
                     provider.provider_id,
-                    str(device_id),
+                    str(device.id),
                     record.timestamp.isoformat(),
                     record.domain,
                     record.query_type or "",
                 )
             )
             key = hashlib.sha256(raw_key.encode()).hexdigest()
-            pending[key] = (device_id, record)
+            pending[key] = (device, record)
         keys = list(pending)
         existing = set(
             (
@@ -54,25 +55,49 @@ async def sync_dns_activity(limit: int = 500) -> int:
                 )
             ).all()
         )
-        inserted = 0
+        inserted_items: list[InternetActivity] = []
         for key, value in pending.items():
             if key in existing:
                 continue
-            device_id, record = value
-            session.add(
-                InternetActivity(
-                    record_key=key,
-                    device_id=device_id,
-                    provider_id=provider.provider_id,
-                    timestamp=record.timestamp,
-                    domain=record.domain,
-                    category=classify_domain(record.domain),
-                    query_type=record.query_type,
-                    response_status=record.status,
-                    blocked=record.blocked,
-                    reason=record.reason,
-                )
+            device, record = value
+            classification = domain_classification_service.classify(
+                record.domain, block_reason=record.reason
             )
-            inserted += 1
+            activity = InternetActivity(
+                record_key=key,
+                device_id=device.id,
+                profile_id=device.profile_id,
+                provider_id=provider.provider_id,
+                timestamp=record.timestamp,
+                source_ip=record.client,
+                domain=record.domain,
+                registered_domain=classification.registered_domain,
+                service=classification.service,
+                category=classification.category,
+                protocol="dns",
+                destination_port=53,
+                query_type=record.query_type,
+                response_status=record.status,
+                blocked=record.blocked,
+                reason=record.reason,
+            )
+            session.add(activity)
+            inserted_items.append(activity)
+        await session.flush()
         await session.commit()
-        return inserted
+    if inserted_items:
+        await connection_manager.broadcast(
+            "internet.activity",
+            {"count": len(inserted_items), "provider_id": provider.provider_id},
+        )
+        for item in [activity for activity in inserted_items if activity.blocked][:25]:
+            await connection_manager.broadcast(
+                "internet.blocked",
+                {
+                    "activity_id": item.id,
+                    "device_id": item.device_id,
+                    "domain": item.domain,
+                    "category": item.category,
+                },
+            )
+    return len(inserted_items)

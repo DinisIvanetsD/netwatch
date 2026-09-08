@@ -54,3 +54,14 @@ class IntegrationResponse(BaseModel):
     status: ProviderStatus
     message: str
     version: str | None = None
+
+
+class SafeSearchConfiguration(BaseModel):
+    enabled: bool
+    google: bool = True
+    bing: bool = True
+    youtube: bool = True
+    duckduckgo: bool = True
+    ecosia: bool = True
+    pixabay: bool = True
+    yandex: bool = True

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Activity,
+  Ban,
   Bell,
   ChevronRight,
   CircleDot,
@@ -17,6 +18,7 @@ import {
   ServerCog,
   Settings,
   ShieldAlert,
+  ShieldCheck,
   X,
 } from "lucide-react";
 
@@ -53,6 +55,18 @@ const navigation = [
     ],
   },
   {
+    label: "Control",
+    items: [
+      {
+        href: "/parental-controls",
+        label: "Parental Controls",
+        icon: ShieldCheck,
+      },
+      { href: "/access-control", label: "Access Control", icon: CircleDot },
+      { href: "/blocked", label: "Blocked Requests", icon: Ban },
+    ],
+  },
+  {
     label: "System",
     items: [{ href: "/settings", label: "Settings", icon: Settings }],
   },
@@ -67,6 +81,9 @@ const pageNames: Record<string, string> = {
   "/activity": "Activity",
   "/internet": "Internet Activity",
   "/history": "History",
+  "/parental-controls": "Parental Controls",
+  "/access-control": "Access Control",
+  "/blocked": "Blocked Requests",
   "/settings": "Settings",
 };
 

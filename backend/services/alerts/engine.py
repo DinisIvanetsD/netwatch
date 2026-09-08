@@ -12,6 +12,8 @@ TITLES = {
 
 
 def create_alert(event: Event, source: DeviceSource) -> Alert | None:
+    if event.type == EventType.DEVICE_DISCOVERED and settings.new_device_policy == "allow":
+        return None
     enabled = {
         EventType.DEVICE_DISCOVERED: settings.new_device_alerts,
         EventType.DEVICE_OFFLINE: settings.device_offline_alerts,

@@ -1,17 +1,24 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, Integer, String, Text, func
+from sqlalchemy import JSON, Boolean, DateTime, Enum, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from database.base import Base
+from models.device import DeviceSource
 
 
 class ControlProfile(Base):
     __tablename__ = "control_profiles"
+    __table_args__ = (Index("ix_control_profiles_source_name", "source", "name", unique=True),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    name: Mapped[str] = mapped_column(String(80), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(80), nullable=False)
+    source: Mapped[DeviceSource] = mapped_column(
+        Enum(DeviceSource, native_enum=False, length=16),
+        default=DeviceSource.LIVE,
+        nullable=False,
+    )
     description: Mapped[str | None] = mapped_column(String(300))
     internet_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     safe_search_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -27,6 +34,12 @@ class DomainRule(Base):
     __table_args__ = (Index("ix_domain_rules_scope", "scope_type", "scope_id", "enabled"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    source: Mapped[DeviceSource] = mapped_column(
+        Enum(DeviceSource, native_enum=False, length=16),
+        default=DeviceSource.LIVE,
+        nullable=False,
+        index=True,
+    )
     scope_type: Mapped[str] = mapped_column(String(20), nullable=False)
     scope_id: Mapped[int | None] = mapped_column(Integer)
     domain: Mapped[str] = mapped_column(String(253), nullable=False, index=True)
@@ -35,6 +48,13 @@ class DomainRule(Base):
     reason: Mapped[str | None] = mapped_column(String(200))
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    provider_reference: Mapped[str | None] = mapped_column(String(40), unique=True)
+    provider_rule: Mapped[str | None] = mapped_column(String(600))
+    enforcement_status: Mapped[str] = mapped_column(
+        String(20), default="pending", nullable=False, index=True
+    )
+    enforcement_error: Mapped[str | None] = mapped_column(String(300))
+    last_applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -56,6 +76,12 @@ class FilterList(Base):
     __tablename__ = "filter_lists"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    source: Mapped[DeviceSource] = mapped_column(
+        Enum(DeviceSource, native_enum=False, length=16),
+        default=DeviceSource.LIVE,
+        nullable=False,
+        index=True,
+    )
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     source_url: Mapped[str] = mapped_column(String(1000), nullable=False)
     category: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
@@ -68,10 +94,17 @@ class AccessAudit(Base):
     __tablename__ = "access_audit"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    source: Mapped[DeviceSource] = mapped_column(
+        Enum(DeviceSource, native_enum=False, length=16),
+        default=DeviceSource.LIVE,
+        nullable=False,
+        index=True,
+    )
     device_id: Mapped[int | None] = mapped_column(
         ForeignKey("devices.id", ondelete="SET NULL"), index=True
     )
     action: Mapped[str] = mapped_column(String(40), nullable=False)
+    actor: Mapped[str] = mapped_column(String(20), default="administrator", nullable=False)
     result: Mapped[str] = mapped_column(String(30), nullable=False)
     provider_id: Mapped[str | None] = mapped_column(String(40))
     message: Mapped[str] = mapped_column(Text, nullable=False)

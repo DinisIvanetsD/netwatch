@@ -3,18 +3,39 @@ import { AlertSettingsForm } from "@/components/settings/alert-settings-form";
 import { DataSettingsForm } from "@/components/settings/data-settings-form";
 import { ScannerSettingsForm } from "@/components/settings/scanner-settings-form";
 import { AdGuardSettingsForm } from "@/components/settings/adguard-settings-form";
+import { AccessPolicyForm } from "@/components/settings/access-policy-form";
+import { ProviderCapabilityMatrix } from "@/components/settings/provider-capability-matrix";
+import { SafeSearchSettingsForm } from "@/components/settings/safe-search-settings-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getAdGuardConfiguration, getSettings } from "@/lib/api";
+import {
+  getAdGuardConfiguration,
+  getProviderCapabilities,
+  getSafeSearch,
+  getSettings,
+} from "@/lib/api";
 
 export const metadata = { title: "Settings" };
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const [settings, adGuard] = await Promise.all([
+  const [settings, adGuard, providers] = await Promise.all([
     getSettings(),
     getAdGuardConfiguration(),
+    getProviderCapabilities(),
   ]);
+  const dnsProvider = providers.items.find(
+    (provider) => provider.kind === "dns",
+  );
+  const networkProvider = providers.items.find(
+    (provider) => provider.kind === "network",
+  );
+  const safeSearchAvailable = Boolean(
+    dnsProvider?.configured && dnsProvider.capabilities.safe_search,
+  );
+  const safeSearch = safeSearchAvailable
+    ? await getSafeSearch().catch(() => null)
+    : null;
   return (
     <div className="space-y-6">
       <div>
@@ -30,6 +51,40 @@ export default async function SettingsPage() {
           </CardHeader>
           <CardContent>
             <ScannerSettingsForm initial={settings} />
+          </CardContent>
+        </Card>
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Provider capability matrix</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ProviderCapabilityMatrix providers={providers.items} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Access control</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <AccessPolicyForm
+              initial={settings}
+              routerControlAvailable={Boolean(
+                networkProvider?.capabilities.quarantine_device ||
+                networkProvider?.capabilities.firewall_rules,
+              )}
+            />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Safe Search</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <SafeSearchSettingsForm
+              initial={safeSearch}
+              available={safeSearchAvailable}
+              providerName={dnsProvider?.display_name ?? "No DNS provider"}
+            />
           </CardContent>
         </Card>
         <Card className="lg:col-span-2">

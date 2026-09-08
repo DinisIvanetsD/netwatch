@@ -23,6 +23,7 @@ const initial: NetWatchSettings = {
   service_ports: [22, 80, 443],
   offline_after_missed_scans: 3,
   new_device_alerts: true,
+  new_device_policy: "allow_alert",
   device_offline_alerts: true,
   new_service_alerts: true,
   latency_alerts: true,

@@ -12,7 +12,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatLatency, formatRelativeTime } from "@/lib/format";
+import {
+  deviceDisplayName,
+  formatLatency,
+  formatRelativeTime,
+} from "@/lib/format";
 import type { Device, DeviceQuery } from "@/types/device";
 
 type SortField = NonNullable<DeviceQuery["sortBy"]>;
@@ -147,13 +151,20 @@ export function DeviceTable({
                 <DeviceStatusBadge status={device.status} />
               </TableCell>
               <TableCell>
-                <Link href={`/devices/${device.id}`} className="group block">
+                <Link
+                  href={`/devices/${device.id}${deviceDisplayName(device) === "Unnamed device" ? "?tab=access" : ""}`}
+                  className="group block"
+                >
                   <span className="text-foreground group-hover:text-primary font-medium">
-                    {device.name ?? device.hostname ?? "Unnamed device"}
+                    {deviceDisplayName(device)}
                   </span>
                   {device.is_gateway ? (
                     <span className="text-muted-foreground mt-0.5 block text-[10px] tracking-wider uppercase">
                       Gateway
+                    </span>
+                  ) : deviceDisplayName(device) === "Unnamed device" ? (
+                    <span className="text-primary mt-0.5 block text-[10px] tracking-wider uppercase">
+                      Click to set name
                     </span>
                   ) : null}
                 </Link>

@@ -19,8 +19,11 @@ NetWatch is an open-source, self-hosted network monitoring dashboard for discove
 - Historical activity charts, device metrics, event filters, and LAN mapping
 - Runtime-editable network, scanner, alert, service, and retention settings
 - Capability-aware provider architecture that never invents unsupported controls
-- AdGuard Home integration for real DNS query metadata, statistics, and global domain rules
-- Per-device Internet activity with DNS-derived categories and blocked-request status
+- AdGuard Home integration for real DNS query metadata, statistics, Safe Search, and managed domain rules
+- Per-device Internet activity with inferred services, DNS-derived categories, and blocked-request explanations
+- Administrator-managed device names, owners, types, trust states, and household profile assignments
+- Parental profiles with schedules, category preferences, and permanent or temporary website rules
+- Capability-aware access control and a complete audit trail for successful and failed actions
 - Confirmed historical-data cleanup that preserves device and service inventory
 - Automated backend and frontend checks through GitHub Actions
 - Docker Compose development and deployment path
@@ -104,9 +107,9 @@ The normal bridge-network configuration is suitable for the dashboard and API. L
 
 Compose also starts the pinned AdGuard Home integration. Its administration interface is
 available at `http://localhost:8080`; first-run setup uses `http://localhost:3001`. DNS is
-published on host port `5453` in this Windows configuration because Hyper-V Internet Connection
-Sharing owns port `53`. Network-wide DNS requires port `53` on a suitable host or a router that
-supports a custom DNS port.
+published on standard host port `53` by default and can be changed with `ADGUARD_DNS_PORT` when
+the host already reserves that port. Network-wide DNS normally requires port `53` or a router
+that supports a custom DNS port.
 
 ## Configuration
 
@@ -124,13 +127,16 @@ supports a custom DNS port.
 | `SERVICE_SCAN_ENABLED` | `true` | Enables approved TCP service checks |
 | `SERVICE_PORTS` | `22,53,80,443,445,3389` | Approved TCP connection checks |
 | `NEW_DEVICE_ALERTS` | `true` | Alerts when a device is first discovered |
+| `NEW_DEVICE_POLICY` | `allow_alert` | `allow`, `allow_alert`, `quarantine_alert`, or `block_alert` |
 | `DEVICE_OFFLINE_ALERTS` | `true` | Alerts after the configured missed-scan threshold |
 | `NEW_SERVICE_ALERTS` | `true` | Alerts when an approved service is newly observed |
 | `LATENCY_ALERTS` | `true` | Alerts for substantial latency increases |
 | `RETENTION_DAYS` | `30` | Days to retain metrics, events, alerts, and scan records |
+| `NETWATCH_TIMEZONE` | `UTC` | IANA timezone used to evaluate profile schedules |
 | `CORS_ORIGINS` | `http://localhost:3000` | Comma-separated browser origins |
 | `ALLOWED_HOSTS` | `localhost,127.0.0.1` | Accepted HTTP hostnames in production |
 | `NETWATCH_SECRET_KEY` | none | Fernet key required to encrypt provider passwords at rest |
+| `ADGUARD_DNS_PORT` | `53` | Host port published for the included AdGuard DNS server |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Browser-visible API base URL |
 | `NEXT_PUBLIC_WS_URL` | `ws://localhost:8000/ws` | Browser-visible WebSocket endpoint |
 | `NETWATCH_INTERNAL_API_URL` | `http://backend:8000` in Compose | Backend URL used by server-rendered frontend pages |
@@ -144,6 +150,65 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 ```
 
 AdGuard Home is configured from **Settings → AdGuard Home integration**. Enter the local server root URL (for example `http://192.168.1.2:3000`), not a `/control` path. NetWatch accepts only local/private provider destinations.
+
+## Internet Activity
+
+The Internet Activity page associates AdGuard Home DNS records with inventory devices by local IP address. It displays the device name, contacted domain, inferred service, category, provider result, and whether the request was blocked. A device appears only when it uses the configured AdGuard Home instance for DNS.
+
+DNS records are observations, not exact usage time. Seeing `youtube.com` means the device requested that domain; it does not prove which page or video was viewed.
+
+## Parental Controls
+
+Open **Control → Parental Controls** to create profiles, assign devices, save allowed Internet windows, choose category-policy preferences, and add custom allow or block rules. Rule precedence is designed around explicit scope: device-specific rules are more specific than profile rules, which are more specific than global rules. Temporary rules expire automatically.
+
+Custom domain rules are sent to AdGuard Home only after the provider confirms the required capability. A profile or device rule with no assigned client remains visibly pending. Category selections remain policy preferences when the configured DNS provider does not expose per-profile category filtering; the capability matrix shows this honestly.
+
+## Website Blocking
+
+Website rules accept normalized domain names such as `example.com`; arbitrary URLs, paths, commands, and public scan targets are rejected. Subdomain blocking uses provider-supported DNS syntax. Allow rules always include subdomains because exact-only allow exceptions are not reliably representable by the current AdGuard Home rule adapter.
+
+## Category Filtering
+
+NetWatch stores maintainable category policy identifiers and reports provider-derived categories in activity logs. It does not embed large third-party blocklists in the application. The current AdGuard Home adapter reports per-profile category filtering as unavailable because global subscription lists cannot honestly be presented as client-specific policy. Use custom per-profile domain rules or provider-managed global filter lists until a compatible category-list provider is added.
+
+## Device Access Control
+
+Open **Control → Access Control** or the **Access** tab on a device. Renaming, ownership, device type, profile assignment, trust, and ignore actions work in NetWatch itself. Pause Internet, block Internet, quarantine, release, and persistent device blocking require a router/firewall provider that confirms the action. Buttons remain disabled with the default **Generic / Monitoring Only** provider.
+
+Every attempted control action is written to the audit log with its actor, provider, result, timestamp, and message. A failed provider request never changes the displayed device state.
+
+## Unknown Device Quarantine
+
+New devices begin as unknown and can generate an alert. The conservative default is **Allow + Alert**. Automatic quarantine or blocking can be selected in Settings, but it is applied only when the configured network provider safely supports the required API. Unsupported automatic actions leave the device unchanged and record a failure instead of simulating success.
+
+## AdGuard Home Setup
+
+1. Start the included service with `docker compose up -d` and finish AdGuard Home setup at `http://localhost:8080`.
+2. In NetWatch, open **Settings → AdGuard Home integration** and save the local server URL, username, and password.
+3. Use **Test connection**, then review the provider capability matrix.
+4. Configure household clients or the router to use AdGuard Home as DNS. Merely scanning the LAN does not route DNS through AdGuard Home.
+
+If Windows Internet Connection Sharing or another resolver already owns port `53`, set `ADGUARD_DNS_PORT=5453` locally before starting Compose. Most routers accept only standard DNS port `53`; in that case, network-wide activity requires AdGuard Home on a host where port `53` is available or a router that supports a custom DNS port.
+
+## Safe Search
+
+The Settings page reads and writes AdGuard Home's supported global Safe Search configuration. It is provider-wide and applies only to clients using that DNS server. Profile Safe Search is retained as an administrator policy preference and is never labelled as per-profile enforcement when the provider supports only global settings.
+
+## Pi-hole Setup
+
+The DNS provider interface is ready for additional adapters, but a Pi-hole adapter is not shipped in this release. NetWatch does not offer a non-working Pi-hole form or claim capabilities that have not been verified against the configured Pi-hole API version.
+
+## Router Integration
+
+The network-control interface defines capability checks for client inventory, status, Internet blocking, release, quarantine, disconnect, bandwidth metrics, and firewall rules. This release ships the safe **Generic / Monitoring Only** fallback. OpenWrt, OPNsense, and UniFi require hardware/API-specific adapters and credentials and are not simulated when no supported router is present.
+
+## HTTPS, Encrypted DNS, and VPN Limitations
+
+HTTPS prevents NetWatch from reading search text, exact videos, messages, passwords, forms, and page contents. NetWatch does not perform TLS interception or install certificates. DNS visibility and filtering can be bypassed by VPNs, Tor, proxies, hardcoded DNS, DNS-over-HTTPS, or DNS-over-TLS unless legitimate router/firewall controls enforce the approved DNS path. Possible VPN use may only be presented as an inference from metadata, never as certainty.
+
+## Privacy
+
+Internet records contain only the metadata supplied by configured infrastructure: device/profile association, local client IP, domain, inferred category/service, timestamp, DNS result, and matching rule. NetWatch does not store page contents, messages, passwords, form data, or encrypted payloads. Historical activity follows the configured retention period and can be cleared without deleting device inventory.
 
 ## Demo Mode
 

@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
 
 from core.config import normalize_private_subnet
@@ -12,6 +14,7 @@ class SettingsResponse(BaseModel):
     service_ports: list[int]
     offline_after_missed_scans: int
     new_device_alerts: bool
+    new_device_policy: Literal["allow", "allow_alert", "quarantine_alert", "block_alert"]
     device_offline_alerts: bool
     new_service_alerts: bool
     latency_alerts: bool
@@ -27,6 +30,9 @@ class SettingsUpdate(BaseModel):
     service_scan_enabled: bool | None = None
     service_ports: list[int] | None = Field(default=None, min_length=1, max_length=64)
     new_device_alerts: bool | None = None
+    new_device_policy: Literal["allow", "allow_alert", "quarantine_alert", "block_alert"] | None = (
+        None
+    )
     device_offline_alerts: bool | None = None
     new_service_alerts: bool | None = None
     latency_alerts: bool | None = None

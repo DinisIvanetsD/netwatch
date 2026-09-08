@@ -5,10 +5,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.config import settings
+from api.dependencies import active_source
 from database.repositories.device import DeviceRepository
 from database.session import get_session
-from models.device import DeviceSource, DeviceStatus
+from models.device import DeviceStatus
 from models.event import Event
 from models.metric import DeviceMetric
 from models.service import Service
@@ -17,10 +17,6 @@ from schemas.history import EventListResponse, EventResponse, MetricListResponse
 
 router = APIRouter(prefix="/devices", tags=["devices"])
 SessionDependency = Annotated[AsyncSession, Depends(get_session)]
-
-
-def active_source() -> DeviceSource:
-    return DeviceSource.DEMO if settings.netwatch_demo_mode else DeviceSource.LIVE
 
 
 @router.get("", response_model=DeviceListResponse)

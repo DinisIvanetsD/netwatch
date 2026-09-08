@@ -16,10 +16,12 @@ SessionDependency = Annotated[AsyncSession, Depends(get_session)]
 
 
 def serialize(service: Service, device: Device) -> ServiceResponse:
+    display_name = device.name if device.name != device.ip_address else None
+    hostname = device.hostname if device.hostname != device.ip_address else None
     return ServiceResponse(
         id=service.id,
         device_id=device.id,
-        device_name=device.name or device.hostname or device.ip_address,
+        device_name=display_name or hostname or "Unnamed device",
         ip_address=device.ip_address,
         port=service.port,
         protocol=service.protocol,

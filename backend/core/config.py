@@ -1,6 +1,7 @@
 from functools import lru_cache
 from ipaddress import ip_network
 from typing import Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -43,10 +44,14 @@ class Settings(BaseSettings):
     service_scan_enabled: bool = True
     service_ports: str = "22,53,80,443,445,3389"
     new_device_alerts: bool = True
+    new_device_policy: Literal["allow", "allow_alert", "quarantine_alert", "block_alert"] = (
+        "allow_alert"
+    )
     device_offline_alerts: bool = True
     new_service_alerts: bool = True
     latency_alerts: bool = True
     retention_days: int = 30
+    netwatch_timezone: str = "UTC"
     cors_origins: str = "http://localhost:3000"
     allowed_hosts: str = "localhost,127.0.0.1"
     max_request_size_bytes: int = 1_048_576
@@ -92,6 +97,15 @@ class Settings(BaseSettings):
     def validate_retention_days(cls, value: int) -> int:
         if not 1 <= value <= 3_650:
             raise ValueError("RETENTION_DAYS must be between 1 and 3650 days")
+        return value
+
+    @field_validator("netwatch_timezone")
+    @classmethod
+    def validate_timezone(cls, value: str) -> str:
+        try:
+            ZoneInfo(value)
+        except ZoneInfoNotFoundError as error:
+            raise ValueError("NETWATCH_TIMEZONE must be a valid IANA timezone") from error
         return value
 
     @property

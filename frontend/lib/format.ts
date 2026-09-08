@@ -1,3 +1,5 @@
+import type { Device } from "@/types/device";
+
 export function formatLatency(latencyMs: number | null): string {
   if (latencyMs === null) return "—";
   return `${latencyMs.toFixed(latencyMs < 10 ? 1 : 0)} ms`;
@@ -29,4 +31,14 @@ export function formatRelativeTime(value: string, now = Date.now()): string {
     }
   }
   return formatter.format(differenceSeconds, "second");
+}
+
+export function deviceDisplayName(
+  device: Pick<Device, "name" | "hostname" | "ip_address">,
+): string {
+  if (device.name && device.name !== device.ip_address) return device.name;
+  if (device.hostname && device.hostname !== device.ip_address) {
+    return device.hostname;
+  }
+  return "Unnamed device";
 }

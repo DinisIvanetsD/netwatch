@@ -5,6 +5,7 @@ import type { ServiceListResponse } from "@/types/service";
 import type { HistoryClearResult, NetWatchSettings } from "@/types/settings";
 import type { NetworkActivity, NetworkStatus } from "@/types/network";
 import type {
+  InternetActivityQuery,
   InternetActivityList,
   InternetActivitySummary,
 } from "@/types/internet-activity";
@@ -12,8 +13,25 @@ import type { Alert, AlertListResponse } from "@/types/alert";
 import type {
   AdGuardConfigurationInput,
   AdGuardIntegration,
+  ProviderCapabilityList,
   ProviderStatus,
+  SafeSearchConfiguration,
 } from "@/types/integration";
+import type {
+  AccessAuditList,
+  AccessOverview,
+  AccessScheduleInput,
+  BlockedRequestList,
+  BlockedRequestQuery,
+  ControlProfile,
+  ControlProfileInput,
+  ControlProfileList,
+  DeviceControlAction,
+  DeviceControlResult,
+  DeviceIdentityInput,
+  DomainRule,
+  DomainRuleInput,
+} from "@/types/control";
 import type {
   EventListResponse,
   EventSeverity,
@@ -56,8 +74,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(message, response.status);
   }
 
+  if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
+
+const jsonHeaders = {
+  Accept: "application/json",
+  "Content-Type": "application/json",
+};
 
 export async function getDevices(
   query: DeviceQuery = {},
@@ -72,6 +96,20 @@ export async function getDevices(
 
   const suffix = params.size ? `?${params.toString()}` : "";
   return request<DeviceListResponse>(`/api/devices${suffix}`);
+}
+
+export async function getAllDevices(
+  query: Omit<DeviceQuery, "page" | "perPage"> = {},
+): Promise<Device[]> {
+  const firstPage = await getDevices({ ...query, page: 1, perPage: 100 });
+  const items = [...firstPage.items];
+
+  for (let page = 2; page <= firstPage.pages; page += 1) {
+    const nextPage = await getDevices({ ...query, page, perPage: 100 });
+    items.push(...nextPage.items);
+  }
+
+  return items;
 }
 
 export async function getDevice(deviceId: number): Promise<Device> {
@@ -135,7 +173,7 @@ export async function updateSettings(
 ): Promise<NetWatchSettings> {
   return request<NetWatchSettings>("/api/settings", {
     method: "PATCH",
-    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    headers: jsonHeaders,
     body: JSON.stringify(payload),
   });
 }
@@ -162,7 +200,7 @@ export async function updateAlert(
 ): Promise<Alert> {
   return request<Alert>(`/api/alerts/${alertId}`, {
     method: "PATCH",
-    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    headers: jsonHeaders,
     body: JSON.stringify(payload),
   });
 }
@@ -194,7 +232,7 @@ export async function configureAdGuard(
 ): Promise<AdGuardIntegration> {
   return request<AdGuardIntegration>("/api/integrations/adguard", {
     method: "PUT",
-    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    headers: jsonHeaders,
     body: JSON.stringify(payload),
   });
 }
@@ -210,18 +248,191 @@ export async function testAdGuard(payload: {
 }> {
   return request("/api/integrations/adguard/test", {
     method: "POST",
-    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    headers: jsonHeaders,
     body: JSON.stringify(payload),
   });
 }
 
 export async function getInternetActivity(
-  deviceId?: number,
+  input: InternetActivityQuery | number = {},
 ): Promise<InternetActivityList> {
-  const query = deviceId ? `?device_id=${deviceId}` : "";
-  return request<InternetActivityList>(`/api/internet-activity${query}`);
+  const query = typeof input === "number" ? { deviceId: input } : input;
+  const params = new URLSearchParams();
+  if (query.deviceId) params.set("device_id", String(query.deviceId));
+  if (query.category) params.set("category", query.category);
+  if (query.blocked !== undefined) params.set("blocked", String(query.blocked));
+  if (query.search) params.set("search", query.search);
+  if (query.hours) params.set("hours", String(query.hours));
+  if (query.page) params.set("page", String(query.page));
+  if (query.perPage) params.set("per_page", String(query.perPage));
+  const suffix = params.size ? `?${params.toString()}` : "";
+  return request<InternetActivityList>(`/api/internet-activity${suffix}`);
 }
 
-export async function getInternetActivitySummary(): Promise<InternetActivitySummary> {
-  return request<InternetActivitySummary>("/api/internet-activity/summary");
+export async function getInternetActivitySummary(
+  deviceId?: number,
+  hours = 24,
+): Promise<InternetActivitySummary> {
+  const params = new URLSearchParams({ hours: String(hours) });
+  if (deviceId) params.set("device_id", String(deviceId));
+  return request<InternetActivitySummary>(
+    `/api/internet-activity/summary?${params.toString()}`,
+  );
+}
+
+export async function getProviderCapabilities(): Promise<ProviderCapabilityList> {
+  return request<ProviderCapabilityList>("/api/integrations/capabilities");
+}
+
+export async function getSafeSearch(): Promise<SafeSearchConfiguration> {
+  return request<SafeSearchConfiguration>("/api/integrations/dns/safe-search");
+}
+
+export async function updateSafeSearch(
+  payload: SafeSearchConfiguration,
+): Promise<SafeSearchConfiguration> {
+  return request<SafeSearchConfiguration>("/api/integrations/dns/safe-search", {
+    method: "PUT",
+    headers: jsonHeaders,
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getControlProfiles(): Promise<ControlProfileList> {
+  return request<ControlProfileList>("/api/parental/profiles");
+}
+
+export async function createControlProfile(
+  payload: ControlProfileInput,
+): Promise<ControlProfile> {
+  return request<ControlProfile>("/api/parental/profiles", {
+    method: "POST",
+    headers: jsonHeaders,
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateControlProfile(
+  profileId: number,
+  payload: Partial<ControlProfileInput>,
+): Promise<ControlProfile> {
+  return request<ControlProfile>(`/api/parental/profiles/${profileId}`, {
+    method: "PATCH",
+    headers: jsonHeaders,
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteControlProfile(profileId: number): Promise<void> {
+  return request<void>(`/api/parental/profiles/${profileId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function assignProfileDevices(
+  profileId: number,
+  deviceIds: number[],
+): Promise<ControlProfile> {
+  return request<ControlProfile>(
+    `/api/parental/profiles/${profileId}/devices`,
+    {
+      method: "PUT",
+      headers: jsonHeaders,
+      body: JSON.stringify({ device_ids: deviceIds }),
+    },
+  );
+}
+
+export async function replaceProfileSchedules(
+  profileId: number,
+  schedules: AccessScheduleInput[],
+): Promise<ControlProfile> {
+  return request<ControlProfile>(
+    `/api/parental/profiles/${profileId}/schedules`,
+    {
+      method: "PUT",
+      headers: jsonHeaders,
+      body: JSON.stringify({ schedules }),
+    },
+  );
+}
+
+export async function getDomainRules(): Promise<DomainRule[]> {
+  return request<DomainRule[]>("/api/parental/domain-rules");
+}
+
+export async function createDomainRule(
+  payload: DomainRuleInput,
+): Promise<DomainRule> {
+  return request<DomainRule>("/api/parental/domain-rules", {
+    method: "POST",
+    headers: jsonHeaders,
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function retryDomainRule(ruleId: number): Promise<DomainRule> {
+  return request<DomainRule>(`/api/parental/domain-rules/${ruleId}/retry`, {
+    method: "POST",
+  });
+}
+
+export async function deleteDomainRule(ruleId: number): Promise<void> {
+  return request<void>(`/api/parental/domain-rules/${ruleId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getAccessOverview(): Promise<AccessOverview> {
+  return request<AccessOverview>("/api/access-control");
+}
+
+export async function getAccessAudit(
+  deviceId?: number,
+  page = 1,
+): Promise<AccessAuditList> {
+  const params = new URLSearchParams({ page: String(page), per_page: "50" });
+  if (deviceId) params.set("device_id", String(deviceId));
+  return request<AccessAuditList>(`/api/access-audit?${params.toString()}`);
+}
+
+export async function updateDeviceIdentity(
+  deviceId: number,
+  payload: DeviceIdentityInput,
+): Promise<Device> {
+  return request<Device>(`/api/devices/${deviceId}/identity`, {
+    method: "PATCH",
+    headers: jsonHeaders,
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function runDeviceControlAction(
+  deviceId: number,
+  action: DeviceControlAction,
+  durationMinutes?: number,
+): Promise<DeviceControlResult> {
+  const body =
+    action === "pause-internet"
+      ? JSON.stringify({ duration_minutes: durationMinutes ?? null })
+      : undefined;
+  return request<DeviceControlResult>(`/api/devices/${deviceId}/${action}`, {
+    method: "POST",
+    ...(body ? { headers: jsonHeaders, body } : {}),
+  });
+}
+
+export async function getBlockedRequests(
+  query: BlockedRequestQuery = {},
+): Promise<BlockedRequestList> {
+  const params = new URLSearchParams();
+  if (query.deviceId) params.set("device_id", String(query.deviceId));
+  if (query.profileId) params.set("profile_id", String(query.profileId));
+  if (query.category) params.set("category", query.category);
+  if (query.domain) params.set("domain", query.domain);
+  if (query.hours) params.set("hours", String(query.hours));
+  if (query.page) params.set("page", String(query.page));
+  if (query.perPage) params.set("per_page", String(query.perPage));
+  const suffix = params.size ? `?${params.toString()}` : "";
+  return request<BlockedRequestList>(`/api/blocked-requests${suffix}`);
 }

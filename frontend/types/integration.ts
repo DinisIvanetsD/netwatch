@@ -25,3 +25,31 @@ export interface AdGuardConfigurationInput {
   password?: string;
   enabled: boolean;
 }
+
+export type ProviderKind = "dns" | "network";
+
+export interface ProviderCapability {
+  provider_id: string;
+  display_name: string;
+  kind: ProviderKind;
+  configured: boolean;
+  status: ProviderStatus;
+  message: string;
+  version: string | null;
+  capabilities: Record<string, boolean>;
+}
+
+export interface ProviderCapabilityList {
+  items: ProviderCapability[];
+}
+
+export interface SafeSearchConfiguration {
+  enabled: boolean;
+  google: boolean;
+  bing: boolean;
+  youtube: boolean;
+  duckduckgo: boolean;
+  ecosia: boolean;
+  pixabay: boolean;
+  yandex: boolean;
+}

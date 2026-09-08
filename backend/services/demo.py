@@ -7,18 +7,98 @@ from sqlalchemy import func, select
 from core.config import settings
 from database.session import SessionLocal
 from models.alert import Alert
+from models.control import AccessAudit, ControlProfile
 from models.device import Device, DeviceSource, DeviceStatus
 from models.event import Event, EventSeverity, EventType
+from models.internet_activity import InternetActivity
 from models.metric import DeviceMetric
 from models.service import Service
 
 DEMO_DEVICE_TEMPLATES = (
-    ("Main Router", "gateway.netwatch.demo", "A4:2B:B0:18:20:01", "TP-Link", True, 2.1),
-    ("NAS Server", "nas.netwatch.demo", "00:11:32:61:20:02", "Synology", False, 3.8),
-    ("Workstation", "desktop-dinis.netwatch.demo", "3C:52:82:7A:20:03", "Intel", False, 4.2),
-    ("Living Room TV", "living-room-tv.netwatch.demo", "7C:64:56:33:20:04", "Samsung", False, 8.7),
-    ("Office Printer", "printer.netwatch.demo", "00:80:77:55:20:05", "Brother", False, None),
-    ("Laptop", "laptop.netwatch.demo", "D8:3A:DD:42:20:06", "Apple", False, 6.4),
+    (
+        "Main Router",
+        "gateway.netwatch.demo",
+        "A4:2B:B0:18:20:01",
+        "TP-Link",
+        True,
+        2.1,
+        "router",
+        None,
+        "trusted",
+        "Adult",
+    ),
+    (
+        "Dinis-PC",
+        "dinis-pc.netwatch.demo",
+        "3C:52:82:7A:20:02",
+        "Intel",
+        False,
+        4.2,
+        "desktop",
+        "Dinis",
+        "trusted",
+        "Adult",
+    ),
+    (
+        "João-iPad",
+        "joao-ipad.netwatch.demo",
+        "D8:3A:DD:42:20:03",
+        "Apple",
+        False,
+        7.4,
+        "tablet",
+        "João",
+        "trusted",
+        "Child",
+    ),
+    (
+        "Kids-Laptop",
+        "kids-laptop.netwatch.demo",
+        "78:2B:46:33:20:04",
+        "Lenovo",
+        False,
+        9.1,
+        "laptop",
+        "Children",
+        "trusted",
+        "Child",
+    ),
+    (
+        "Living-Room-TV",
+        "living-room-tv.netwatch.demo",
+        "7C:64:56:33:20:05",
+        "Samsung",
+        False,
+        8.7,
+        "tv",
+        None,
+        "trusted",
+        "Adult",
+    ),
+    (
+        "PlayStation",
+        "playstation.netwatch.demo",
+        "00:D9:D1:55:20:06",
+        "Sony",
+        False,
+        None,
+        "game_console",
+        None,
+        "trusted",
+        "Child",
+    ),
+    (
+        "Unknown-Xiaomi",
+        None,
+        "64:CC:2E:42:20:07",
+        "Xiaomi Communications",
+        False,
+        18.2,
+        "unknown",
+        None,
+        "unknown",
+        None,
+    ),
 )
 
 
@@ -36,12 +116,31 @@ async def seed_demo_devices() -> None:
         now = datetime.now(UTC)
         network = ip_network(settings.netwatch_subnet)
         addresses = list(islice(network.hosts(), len(DEMO_DEVICE_TEMPLATES)))
+        profiles = {
+            profile.name: profile.id
+            for profile in (
+                await session.scalars(
+                    select(ControlProfile).where(ControlProfile.source == DeviceSource.DEMO)
+                )
+            ).all()
+        }
         devices: list[Device] = []
 
         for index, (template, address) in enumerate(
             zip(DEMO_DEVICE_TEMPLATES, addresses, strict=False)
         ):
-            name, hostname, mac_address, vendor, is_gateway, latency_ms = template
+            (
+                name,
+                hostname,
+                mac_address,
+                vendor,
+                is_gateway,
+                latency_ms,
+                device_type,
+                owner,
+                trust_state,
+                profile_name,
+            ) = template
             online = latency_ms is not None
             devices.append(
                 Device(
@@ -57,6 +156,10 @@ async def seed_demo_devices() -> None:
                     last_seen=now
                     - (timedelta(seconds=12 + index) if online else timedelta(hours=2)),
                     is_gateway=is_gateway,
+                    device_type=device_type,
+                    owner=owner,
+                    trust_state=trust_state,
+                    profile_id=profiles.get(profile_name) if profile_name else None,
                 )
             )
 
@@ -113,18 +216,24 @@ async def seed_demo_history() -> None:
                 1,
                 EventType.DEVICE_DISCOVERED,
                 EventSeverity.INFO,
-                "NAS Server was first discovered.",
+                "Dinis-PC was first discovered.",
                 11,
             ),
             (
-                4,
+                5,
                 EventType.DEVICE_OFFLINE,
                 EventSeverity.MEDIUM,
-                "Office Printer went offline after repeated scan misses.",
+                "PlayStation went offline after repeated scan misses.",
                 2,
             ),
-            (5, EventType.DEVICE_ONLINE, EventSeverity.INFO, "Laptop came back online.", 1),
-            (1, EventType.LATENCY_INCREASED, EventSeverity.LOW, "NAS Server latency increased.", 0),
+            (2, EventType.DEVICE_ONLINE, EventSeverity.INFO, "João-iPad came back online.", 1),
+            (
+                3,
+                EventType.LATENCY_INCREASED,
+                EventSeverity.LOW,
+                "Kids-Laptop latency increased.",
+                0,
+            ),
         )
         for device_index, event_type, severity, message, hours_ago in event_templates:
             device = devices[device_index]
@@ -146,7 +255,12 @@ async def seed_demo_services() -> None:
     if not settings.netwatch_demo_mode:
         return
     async with SessionLocal() as session:
-        if await session.scalar(select(func.count()).select_from(Service)):
+        if await session.scalar(
+            select(func.count())
+            .select_from(Service)
+            .join(Device, Device.id == Service.device_id)
+            .where(Device.source == DeviceSource.DEMO)
+        ):
             return
         devices = list(
             (
@@ -162,7 +276,8 @@ async def seed_demo_services() -> None:
             2: (22, 3389),
             3: (80,),
             4: (80,),
-            5: (22,),
+            5: (80, 443),
+            6: (),
         }
         names = {22: "SSH", 53: "DNS", 80: "HTTP", 443: "HTTPS", 445: "SMB", 3389: "RDP"}
         for index, ports in assignments.items():
@@ -178,6 +293,93 @@ async def seed_demo_services() -> None:
                         active=devices[index].status != DeviceStatus.OFFLINE,
                     )
                 )
+        await session.commit()
+
+
+async def seed_demo_internet_activity() -> None:
+    if not settings.netwatch_demo_mode:
+        return
+    async with SessionLocal() as session:
+        if await session.scalar(
+            select(func.count())
+            .select_from(InternetActivity)
+            .join(Device, Device.id == InternetActivity.device_id)
+            .where(Device.source == DeviceSource.DEMO)
+        ):
+            return
+        devices = {
+            device.name: device
+            for device in (
+                await session.scalars(select(Device).where(Device.source == DeviceSource.DEMO))
+            ).all()
+        }
+        now = datetime.now(UTC)
+        observations = (
+            ("João-iPad", "youtube.com", "YouTube", "streaming", False, None, 4),
+            ("João-iPad", "rbxcdn.com", "Roblox", "gaming", False, None, 11),
+            (
+                "João-iPad",
+                "blocked-example.test",
+                None,
+                "adult_content",
+                True,
+                "FilteredParental",
+                16,
+            ),
+            ("Kids-Laptop", "tiktok.com", "TikTok", "social_media", False, None, 21),
+            (
+                "Kids-Laptop",
+                "gambling-example.test",
+                None,
+                "gambling",
+                True,
+                "FilteredBlackList",
+                29,
+            ),
+            ("Dinis-PC", "discord.com", "Discord", "communication", False, None, 37),
+            ("Living-Room-TV", "nflxvideo.net", "Netflix", "streaming", False, None, 48),
+            ("PlayStation", "playstation.net", "PlayStation", "gaming", False, None, 72),
+        )
+        for index, (name, domain, service, category, blocked, reason, minutes_ago) in enumerate(
+            observations
+        ):
+            device = devices.get(name)
+            if device is None:
+                continue
+            session.add(
+                InternetActivity(
+                    record_key=f"demo-{device.id}-{index}",
+                    device_id=device.id,
+                    profile_id=device.profile_id,
+                    provider_id="demo_dns",
+                    timestamp=now - timedelta(minutes=minutes_ago),
+                    source_ip=device.ip_address,
+                    domain=domain,
+                    registered_domain=domain,
+                    service=service,
+                    category=category,
+                    protocol="dns",
+                    destination_port=53,
+                    query_type="A",
+                    response_status="NOERROR" if not blocked else "FILTERED",
+                    blocked=blocked,
+                    reason=reason,
+                )
+            )
+        unknown = devices.get("Unknown-Xiaomi")
+        if unknown is not None:
+            session.add(
+                AccessAudit(
+                    device_id=unknown.id,
+                    source=DeviceSource.DEMO,
+                    action="device.discovered",
+                    actor="system",
+                    result="completed",
+                    provider_id="demo",
+                    message="Unknown-Xiaomi joined the demo network.",
+                    metadata_payload={"demo": True},
+                )
+            )
         await session.commit()
 
 

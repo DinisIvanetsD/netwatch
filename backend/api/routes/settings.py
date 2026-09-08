@@ -27,6 +27,7 @@ def current_settings() -> SettingsResponse:
         service_ports=list(settings.approved_service_ports),
         offline_after_missed_scans=settings.offline_after_missed_scans,
         new_device_alerts=settings.new_device_alerts,
+        new_device_policy=settings.new_device_policy,
         device_offline_alerts=settings.device_offline_alerts,
         new_service_alerts=settings.new_service_alerts,
         latency_alerts=settings.latency_alerts,
@@ -79,6 +80,7 @@ async def update_settings(payload: SettingsUpdate, session: SessionDependency) -
         "device_offline_alerts",
         "new_service_alerts",
         "latency_alerts",
+        "new_device_policy",
     ):
         value = getattr(payload, key)
         if value is not None:

@@ -4,10 +4,8 @@ services:
   adguardhome:
     image: adguard/adguardhome:v0.107.79
     ports:
-      # Port 53 is currently occupied by Windows ICS on this host. Use 5453
-      # until the host DNS conflict is resolved safely.
-      - "5453:53/tcp"
-      - "5453:53/udp"
+      - "${ADGUARD_DNS_PORT:-53}:53/tcp"
+      - "${ADGUARD_DNS_PORT:-53}:53/udp"
       - "8080:80/tcp"
       - "3001:3000/tcp"
     volumes:
@@ -31,6 +29,13 @@ services:
       MONITORING_ENABLED: ${MONITORING_ENABLED:-true}
       SERVICE_SCAN_ENABLED: ${SERVICE_SCAN_ENABLED:-true}
       SERVICE_PORTS: ${SERVICE_PORTS:-22,53,80,443,445,3389}
+      NEW_DEVICE_ALERTS: ${NEW_DEVICE_ALERTS:-true}
+      NEW_DEVICE_POLICY: ${NEW_DEVICE_POLICY:-allow_alert}
+      DEVICE_OFFLINE_ALERTS: ${DEVICE_OFFLINE_ALERTS:-true}
+      NEW_SERVICE_ALERTS: ${NEW_SERVICE_ALERTS:-true}
+      LATENCY_ALERTS: ${LATENCY_ALERTS:-true}
+      RETENTION_DAYS: ${RETENTION_DAYS:-30}
+      NETWATCH_TIMEZONE: ${NETWATCH_TIMEZONE:-UTC}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
       NETWATCH_SECRET_KEY: ${NETWATCH_SECRET_KEY:-}

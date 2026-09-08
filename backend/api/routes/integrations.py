@@ -1,9 +1,11 @@
 import asyncio
+from dataclasses import asdict
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.dependencies import active_source
 from core.credentials import CredentialConfigurationError
 from database.session import get_session
 from models.integration import Integration
@@ -13,16 +15,23 @@ from schemas.integration import (
     IntegrationResponse,
     ProviderCapabilityListResponse,
     ProviderCapabilityResponse,
+    SafeSearchConfiguration,
 )
+from services.control.rules import reconcile_all_rules
 from services.integrations import (
     activate_adguard,
     get_adguard_integration,
     save_adguard_integration,
 )
-from services.providers.common import ProviderHealth
-from services.providers.dns import AdGuardHomeProvider, DNSCapability
+from services.providers.common import CapabilityUnavailableError, ProviderHealth, ProviderStatus
+from services.providers.dns import (
+    AdGuardHomeProvider,
+    DNSCapability,
+    SafeSearchSettings,
+)
 from services.providers.network import NetworkCapability
 from services.providers.registry import ProviderKind, provider_registry
+from services.realtime.manager import connection_manager
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
 SessionDependency = Annotated[AsyncSession, Depends(get_session)]
@@ -141,6 +150,9 @@ async def configure_adguard(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(error)
         ) from error
+    if health.status == ProviderStatus.CONNECTED:
+        await reconcile_all_rules(session, active_source())
+        await session.commit()
     return _integration_response(integration, health)
 
 
@@ -152,3 +164,36 @@ async def delete_adguard(session: SessionDependency) -> Response:
         await session.commit()
     provider_registry.clear_dns()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/dns/safe-search", response_model=SafeSearchConfiguration)
+async def get_safe_search() -> SafeSearchConfiguration:
+    try:
+        current = await provider_registry.dns.safe_search_status()
+    except CapabilityUnavailableError as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+    except Exception as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="The DNS provider could not return Safe Search settings.",
+        ) from error
+    return SafeSearchConfiguration(**asdict(current))
+
+
+@router.put("/dns/safe-search", response_model=SafeSearchConfiguration)
+async def update_safe_search(
+    payload: SafeSearchConfiguration,
+) -> SafeSearchConfiguration:
+    try:
+        updated = await provider_registry.dns.set_safe_search(
+            SafeSearchSettings(**payload.model_dump())
+        )
+    except CapabilityUnavailableError as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+    except Exception as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="The DNS provider could not update Safe Search settings.",
+        ) from error
+    await connection_manager.broadcast("provider.updated", {"provider_id": "dns"})
+    return SafeSearchConfiguration(**asdict(updated))

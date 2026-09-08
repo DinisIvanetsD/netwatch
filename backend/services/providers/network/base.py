@@ -67,3 +67,7 @@ class NetworkControlProvider(ABC):
     async def release_device(self, identifier: str) -> NetworkControlResult:
         self.require(NetworkCapability.RELEASE_DEVICE)
         raise NotImplementedError
+
+    async def block_device(self, identifier: str) -> NetworkControlResult:
+        self.require(NetworkCapability.FIREWALL_RULES)
+        raise NotImplementedError

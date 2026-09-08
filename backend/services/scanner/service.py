@@ -16,6 +16,8 @@ from models.scan import Scan, ScanStatus
 from models.service import Service
 from services.activity import sync_dns_activity
 from services.alerts.lifecycle import reconcile_alerts
+from services.control.actions import apply_new_device_policy, resume_expired_pauses
+from services.control.rules import expire_domain_rules
 from services.discovery.base import DiscoveryAdapter, DiscoveryResult
 from services.discovery.system import SystemDiscoveryAdapter
 from services.realtime.manager import connection_manager
@@ -55,12 +57,13 @@ def process_discovery_results(
     for result in results:
         observed_addresses.add(result.ip_address)
         device = existing.get(result.ip_address)
+        discovered_hostname = result.hostname if result.hostname != result.ip_address else None
         if device is None:
             device = Device(
-                name=result.hostname,
+                name=discovered_hostname,
                 ip_address=result.ip_address,
                 mac_address=result.mac_address,
-                hostname=result.hostname,
+                hostname=discovered_hostname,
                 vendor=None,
                 status=DeviceStatus.NEW,
                 source=DeviceSource.LIVE,
@@ -75,19 +78,23 @@ def process_discovery_results(
                 PendingEvent(
                     device,
                     EventType.DEVICE_DISCOVERED,
-                    f"{result.hostname or result.ip_address} was first discovered.",
+                    f"{discovered_hostname or result.ip_address} was first discovered.",
                     metadata={"ip_address": result.ip_address},
                 )
             )
         else:
             previous_status = device.status
             previous_latency = device.latency_ms
+            if device.name == device.ip_address:
+                device.name = None
+            if device.hostname == device.ip_address:
+                device.hostname = None
             device.status = DeviceStatus.ONLINE
             device.last_seen = now
             device.latency_ms = result.latency_ms
             device.mac_address = result.mac_address or device.mac_address
-            device.hostname = result.hostname or device.hostname
-            device.name = device.name or result.hostname
+            device.hostname = discovered_hostname or device.hostname
+            device.name = device.name or discovered_hostname
             device.missed_scans = 0
             if previous_status == DeviceStatus.OFFLINE:
                 outcome.events.append(
@@ -233,6 +240,7 @@ class ScanService:
             )
             session.add_all(outcome.created)
             await session.flush()
+            await apply_new_device_policy(session, outcome.created)
 
             if service_results is not None:
                 observed_ids = [device.id for device in outcome.observed]
@@ -296,6 +304,8 @@ class ScanService:
             scan.devices_found = len(results)
             scan.finished_at = now
             scan.duration_ms = (perf_counter() - started) * 1000
+            await expire_domain_rules(session, DeviceSource.LIVE)
+            await resume_expired_pauses(session, DeviceSource.LIVE)
             await prune_expired_history(session, settings.retention_days)
             await session.commit()
 

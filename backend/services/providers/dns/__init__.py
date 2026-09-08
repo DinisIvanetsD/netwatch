@@ -4,6 +4,7 @@ from services.providers.dns.base import (
     DNSControlProvider,
     DNSQueryRecord,
     DomainRuleRequest,
+    SafeSearchSettings,
     UnconfiguredDNSProvider,
 )
 
@@ -12,6 +13,7 @@ __all__ = [
     "DNSControlProvider",
     "DNSQueryRecord",
     "DomainRuleRequest",
+    "SafeSearchSettings",
     "UnconfiguredDNSProvider",
     "AdGuardHomeProvider",
     "AdGuardProviderError",

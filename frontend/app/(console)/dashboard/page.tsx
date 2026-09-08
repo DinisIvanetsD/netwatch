@@ -1,10 +1,13 @@
 import Link from "next/link";
 import {
   Activity,
+  Ban,
   BellRing,
   CircleOff,
   MonitorCheck,
   Router,
+  ShieldQuestion,
+  Users,
 } from "lucide-react";
 
 import { DeviceTable } from "@/components/devices/device-table";
@@ -14,7 +17,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   getAlerts,
+  getAccessOverview,
+  getBlockedRequests,
+  getControlProfiles,
   getDevices,
+  getInternetActivitySummary,
   getNetworkActivity,
   getNetworkStatus,
 } from "@/lib/api";
@@ -34,19 +41,36 @@ export default async function DashboardPage({
     requestedRange && requestedRange in ranges
       ? (requestedRange as keyof typeof ranges)
       : "24H";
-  const [allDevices, onlineDevices, offlineDevices, alerts, activity, network] =
-    await Promise.all([
-      getDevices({ perPage: 5, sortBy: "last_seen", sortOrder: "desc" }),
-      getDevices({ perPage: 1, status: "online" }),
-      getDevices({ perPage: 1, status: "offline" }),
-      getAlerts(),
-      getNetworkActivity(ranges[range]),
-      getNetworkStatus(),
-    ]);
+  const [
+    allDevices,
+    onlineDevices,
+    offlineDevices,
+    alerts,
+    activity,
+    network,
+    access,
+    profiles,
+    blockedRequests,
+    internetSummary,
+  ] = await Promise.all([
+    getDevices({ perPage: 5, sortBy: "last_seen", sortOrder: "desc" }),
+    getDevices({ perPage: 1, status: "online" }),
+    getDevices({ perPage: 1, status: "offline" }),
+    getAlerts(),
+    getNetworkActivity(ranges[range]),
+    getNetworkStatus(),
+    getAccessOverview(),
+    getControlProfiles(),
+    getBlockedRequests({ hours: 24, perPage: 1 }),
+    getInternetActivitySummary(undefined, 24),
+  ]);
   const activeAlerts = alerts.items.filter((alert) => !alert.resolved);
   const availability = allDevices.total
     ? Math.round((onlineDevices.total / allDevices.total) * 100)
     : 0;
+  const childProfile = profiles.items.find(
+    (profile) => profile.name.toLowerCase() === "child",
+  );
 
   return (
     <div className="space-y-6">
@@ -109,6 +133,60 @@ export default async function DashboardPage({
           icon={BellRing}
           tone="warning"
         />
+      </div>
+
+      <div>
+        <div className="mb-3 flex items-end justify-between gap-4">
+          <div>
+            <h2 className="text-base font-semibold">Home Network Control</h2>
+            <p className="text-muted-foreground mt-1 text-xs">
+              Identity, parental policy, and DNS-filtering status.
+            </p>
+          </div>
+          <Button variant="ghost" size="sm" asChild>
+            <Link href="/access-control">Review access</Link>
+          </Button>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            label="UNKNOWN DEVICES"
+            value={String(access.unknown)}
+            detail={
+              access.unknown
+                ? "Needs administrator review"
+                : "Inventory reviewed"
+            }
+            icon={ShieldQuestion}
+            tone={access.unknown ? "warning" : "neutral"}
+          />
+          <MetricCard
+            label="CHILD DEVICES"
+            value={String(childProfile?.device_count ?? 0)}
+            detail={
+              childProfile
+                ? "Assigned to Child profile"
+                : "Child profile not configured"
+            }
+            icon={Users}
+          />
+          <MetricCard
+            label="BLOCKED TODAY"
+            value={String(blockedRequests.total)}
+            detail="DNS provider observations"
+            icon={Ban}
+            tone="warning"
+          />
+          <MetricCard
+            label="INFERRED SERVICES"
+            value={String(internetSummary.top_services.length)}
+            detail={
+              internetSummary.top_services[0]
+                ? `Top: ${internetSummary.top_services[0].service}`
+                : "No DNS activity yet"
+            }
+            icon={Activity}
+          />
+        </div>
       </div>
 
       <Card>

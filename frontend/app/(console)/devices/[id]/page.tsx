@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import {
   Activity,
   ArrowLeft,
+  Ban,
   Clock3,
+  Eye,
   History,
   Globe2,
   Network,
@@ -11,8 +13,15 @@ import {
 } from "lucide-react";
 
 import { DeviceStatusBadge } from "@/components/devices/device-status-badge";
+import { DeviceAccessPanel } from "@/components/control/device-access-panel";
+import {
+  InternetAccessBadge,
+  TrustBadge,
+} from "@/components/control/control-status-badge";
 import { EventTimeline } from "@/components/activity/event-timeline";
 import { EmptyState } from "@/components/empty-state";
+import { MetricCard } from "@/components/metric-card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -21,9 +30,17 @@ import {
   getDeviceMetrics,
   getDeviceServices,
   getEvents,
+  getControlProfiles,
   getInternetActivity,
+  getInternetActivitySummary,
+  getProviderCapabilities,
 } from "@/lib/api";
-import { formatDate, formatLatency, formatRelativeTime } from "@/lib/format";
+import {
+  deviceDisplayName,
+  formatDate,
+  formatLatency,
+  formatRelativeTime,
+} from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Device Details" };
@@ -33,6 +50,7 @@ const tabs = [
   "overview",
   "services",
   "internet",
+  "access",
   "activity",
   "history",
 ] as const;
@@ -65,16 +83,28 @@ export default async function DeviceDetailPage({
   const activeTab: DeviceTab = tabs.includes(rawTab as DeviceTab)
     ? (rawTab as DeviceTab)
     : "overview";
-  const displayName = device.name ?? device.hostname ?? device.ip_address;
-  const [eventHistory, metricHistory, serviceHistory, internetHistory] =
-    await Promise.all([
-      activeTab === "activity"
-        ? getEvents({ deviceId: device.id, perPage: 50 })
-        : null,
-      activeTab === "history" ? getDeviceMetrics(device.id, 200) : null,
-      activeTab === "services" ? getDeviceServices(device.id) : null,
-      activeTab === "internet" ? getInternetActivity(device.id) : null,
-    ]);
+  const displayName = deviceDisplayName(device);
+  const profiles = await getControlProfiles();
+  const profile = profiles.items.find((item) => item.id === device.profile_id);
+  const [
+    eventHistory,
+    metricHistory,
+    serviceHistory,
+    internetHistory,
+    internetSummary,
+    providers,
+  ] = await Promise.all([
+    activeTab === "activity"
+      ? getEvents({ deviceId: device.id, perPage: 50 })
+      : null,
+    activeTab === "history" ? getDeviceMetrics(device.id, 200) : null,
+    activeTab === "services" ? getDeviceServices(device.id) : null,
+    activeTab === "internet"
+      ? getInternetActivity({ deviceId: device.id, hours: 24, perPage: 50 })
+      : null,
+    activeTab === "internet" ? getInternetActivitySummary(device.id, 24) : null,
+    activeTab === "access" ? getProviderCapabilities() : null,
+  ]);
 
   return (
     <div className="space-y-6">
@@ -143,6 +173,9 @@ export default async function DeviceDetailPage({
                 ["Hostname", device.hostname ?? "Unavailable"],
                 ["IP address", device.ip_address],
                 ["MAC address", device.mac_address ?? "Unavailable"],
+                ["Device type", device.device_type ?? "Not assigned"],
+                ["Owner", device.owner ?? "Not assigned"],
+                ["Profile", profile?.name ?? "Unassigned"],
                 ["First seen", formatDate(device.first_seen)],
                 ["Last seen", formatRelativeTime(device.last_seen)],
               ].map(([label, value]) => (
@@ -161,6 +194,10 @@ export default async function DeviceDetailPage({
               <CardTitle>Current Health</CardTitle>
             </CardHeader>
             <CardContent className="space-y-5">
+              <div className="flex flex-wrap gap-2">
+                <TrustBadge state={device.trust_state} />
+                <InternetAccessBadge state={device.internet_access} />
+              </div>
               <div className="flex items-center gap-3">
                 <span className="bg-primary/10 text-primary rounded-lg p-2.5">
                   <Activity className="size-4" aria-hidden="true" />
@@ -242,33 +279,108 @@ export default async function DeviceDetailPage({
       ) : null}
       {activeTab === "internet" ? (
         internetHistory?.items.length ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Internet activity</CardTitle>
-            </CardHeader>
-            <CardContent className="divide-border divide-y p-0">
-              {internetHistory.items.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-sm"
-                >
-                  <div>
-                    <p className="font-mono">{item.domain}</p>
-                    <p className="text-muted-foreground mt-1 text-xs capitalize">
-                      {item.category} · {formatRelativeTime(item.timestamp)}
+          <div className="space-y-4">
+            <div className="border-primary/20 bg-primary/5 flex items-start gap-3 rounded-xl border p-4">
+              <Eye className="text-primary mt-0.5 size-4 shrink-0" />
+              <p className="text-muted-foreground text-xs leading-5">
+                These are DNS observations, not browsing time or search history.
+                HTTPS prevents NetWatch from reading search terms, messages,
+                passwords, exact videos, or page contents.
+              </p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <MetricCard
+                label="DNS REQUESTS TODAY"
+                value={String(internetSummary?.total_queries ?? 0)}
+                detail="Observed domains"
+                icon={Globe2}
+              />
+              <MetricCard
+                label="BLOCKED REQUESTS"
+                value={String(internetSummary?.blocked_queries ?? 0)}
+                detail="Provider-reported blocks"
+                icon={Ban}
+                tone="warning"
+              />
+              <MetricCard
+                label="INFERRED SERVICES"
+                value={String(internetSummary?.top_services.length ?? 0)}
+                detail="Classified from domains"
+                icon={Radar}
+              />
+            </div>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Top services</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {internetSummary?.top_services.length ? (
+                    internetSummary.top_services.map((item) => (
+                      <div
+                        key={item.service}
+                        className="flex items-center justify-between gap-3 text-sm"
+                      >
+                        <span>{item.service}</span>
+                        <Badge variant="secondary">
+                          {item.count} observations
+                        </Badge>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-muted-foreground text-xs">
+                      No classified services yet.
                     </p>
-                  </div>
-                  <span
-                    className={
-                      item.blocked ? "text-amber-300" : "text-emerald-400"
-                    }
+                  )}
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Top domains</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {internetSummary?.top_domains.map((item) => (
+                    <div
+                      key={item.domain}
+                      className="flex items-center justify-between gap-3 text-sm"
+                    >
+                      <span className="truncate font-mono text-xs">
+                        {item.domain}
+                      </span>
+                      <Badge variant="secondary">{item.count}</Badge>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            </div>
+            <Card>
+              <CardHeader className="flex-row items-center justify-between">
+                <CardTitle>Recent Internet activity</CardTitle>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href={`/internet?device=${device.id}`}>View all</Link>
+                </Button>
+              </CardHeader>
+              <CardContent className="divide-border divide-y p-0">
+                {internetHistory.items.map((item) => (
+                  <div
+                    key={item.id}
+                    className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-sm"
                   >
-                    {item.blocked ? "Blocked" : "Allowed"}
-                  </span>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+                    <div>
+                      <p className="font-mono">{item.domain}</p>
+                      <p className="text-muted-foreground mt-1 text-xs capitalize">
+                        {item.service || item.category.replaceAll("_", " ")} ·{" "}
+                        {formatRelativeTime(item.timestamp)}
+                      </p>
+                    </div>
+                    <Badge variant={item.blocked ? "warning" : "secondary"}>
+                      {item.blocked ? "Blocked" : "Allowed"}
+                    </Badge>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
         ) : (
           <EmptyState
             icon={Globe2}
@@ -276,6 +388,13 @@ export default async function DeviceDetailPage({
             description="DNS metadata appears here only when a supported provider is configured and the client IP matches this device."
           />
         )
+      ) : null}
+      {activeTab === "access" ? (
+        <DeviceAccessPanel
+          initial={device}
+          profiles={profiles.items}
+          provider={providers?.items.find((item) => item.kind === "network")}
+        />
       ) : null}
       {activeTab === "history" ? (
         metricHistory?.items.length ? (

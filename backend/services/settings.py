@@ -13,6 +13,7 @@ EDITABLE_KEYS = (
     "service_scan_enabled",
     "service_ports",
     "new_device_alerts",
+    "new_device_policy",
     "device_offline_alerts",
     "new_service_alerts",
     "latency_alerts",
@@ -46,6 +47,8 @@ async def load_persisted_settings() -> None:
             settings.netwatch_subnet = record.value
         elif record.key == "service_ports" and isinstance(record.value, list):
             settings.service_ports = ",".join(str(port) for port in record.value)
+        elif record.key == "new_device_policy" and isinstance(record.value, str):
+            settings.new_device_policy = record.value
         elif (
             record.key in BOOLEAN_KEYS
             and isinstance(record.value, bool)

@@ -39,6 +39,25 @@ class DomainRuleRequest:
     domain: str
     allow: bool
     client: str | None = None
+    clients: tuple[str, ...] = ()
+    include_subdomains: bool = True
+
+    @property
+    def client_identifiers(self) -> tuple[str, ...]:
+        values = (*self.clients, *((self.client,) if self.client else ()))
+        return tuple(dict.fromkeys(values))
+
+
+@dataclass(frozen=True, slots=True)
+class SafeSearchSettings:
+    enabled: bool
+    google: bool = True
+    bing: bool = True
+    youtube: bool = True
+    duckduckgo: bool = True
+    ecosia: bool = True
+    pixabay: bool = True
+    yandex: bool = True
 
 
 class DNSControlProvider(ABC):
@@ -66,12 +85,34 @@ class DNSControlProvider(ABC):
         self.require(DNSCapability.PER_CLIENT_HISTORY if client else DNSCapability.QUERY_HISTORY)
         raise NotImplementedError
 
-    async def add_domain_rule(self, rule: DomainRuleRequest) -> None:
-        self.require(DNSCapability.CLIENT_RULES if rule.client else DNSCapability.DOMAIN_BLOCKING)
+    async def add_domain_rule(self, rule: DomainRuleRequest) -> bool:
+        self.require(
+            DNSCapability.CLIENT_RULES if rule.client_identifiers else DNSCapability.DOMAIN_BLOCKING
+        )
         raise NotImplementedError
 
-    async def remove_domain_rule(self, rule: DomainRuleRequest) -> None:
-        self.require(DNSCapability.CLIENT_RULES if rule.client else DNSCapability.DOMAIN_BLOCKING)
+    async def remove_domain_rule(self, rule: DomainRuleRequest) -> bool:
+        self.require(
+            DNSCapability.CLIENT_RULES if rule.client_identifiers else DNSCapability.DOMAIN_BLOCKING
+        )
+        raise NotImplementedError
+
+    async def upsert_managed_domain_rule(self, reference: str, rule: DomainRuleRequest) -> str:
+        self.require(
+            DNSCapability.CLIENT_RULES if rule.client_identifiers else DNSCapability.DOMAIN_BLOCKING
+        )
+        raise NotImplementedError
+
+    async def remove_managed_domain_rule(self, reference: str) -> bool:
+        self.require(DNSCapability.DOMAIN_BLOCKING)
+        raise NotImplementedError
+
+    async def safe_search_status(self) -> SafeSearchSettings:
+        self.require(DNSCapability.SAFE_SEARCH)
+        raise NotImplementedError
+
+    async def set_safe_search(self, value: SafeSearchSettings) -> SafeSearchSettings:
+        self.require(DNSCapability.SAFE_SEARCH)
         raise NotImplementedError
 
     async def statistics(self) -> dict[str, object]:
