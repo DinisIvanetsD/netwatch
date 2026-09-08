@@ -11,6 +11,10 @@ permissions:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    env:
+      NETWATCH_ENV: test
+      DATABASE_URL: sqlite+aiosqlite:///./netwatch-test.db
+      MONITORING_ENABLED: "false"
     defaults:
       run:
         working-directory: backend
@@ -24,6 +28,7 @@ jobs:
       - run: pip install -r requirements-dev.txt
       - run: ruff format --check .
       - run: ruff check .
+      - run: alembic upgrade head
       - run: pytest -q
 
   frontend:
@@ -44,4 +49,3 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-
