@@ -10,4 +10,12 @@ export interface NetWatchSettings {
   device_offline_alerts: boolean;
   new_service_alerts: boolean;
   latency_alerts: boolean;
+  retention_days: number;
+}
+
+export interface HistoryClearResult {
+  metrics_deleted: number;
+  events_deleted: number;
+  alerts_deleted: number;
+  scans_deleted: number;
 }

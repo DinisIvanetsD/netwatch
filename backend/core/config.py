@@ -10,6 +10,19 @@ RFC1918_NETWORKS = tuple(
 )
 
 
+def normalize_private_subnet(value: str) -> str:
+    network = ip_network(value, strict=True)
+    if network.version != 4:
+        raise ValueError("NETWATCH_SUBNET must be an IPv4 network")
+    if not any(network.subnet_of(private_network) for private_network in RFC1918_NETWORKS):
+        raise ValueError("NETWATCH_SUBNET must be an RFC 1918 private network")
+    if network.num_addresses > 65_536:
+        raise ValueError("NETWATCH_SUBNET is too large; use /16 or smaller")
+    if network.num_addresses < 4:
+        raise ValueError("NETWATCH_SUBNET must provide at least two usable host addresses")
+    return str(network)
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=("../.env", ".env"),
@@ -33,6 +46,7 @@ class Settings(BaseSettings):
     device_offline_alerts: bool = True
     new_service_alerts: bool = True
     latency_alerts: bool = True
+    retention_days: int = 30
     cors_origins: str = "http://localhost:3000"
     allowed_hosts: str = "localhost,127.0.0.1"
     max_request_size_bytes: int = 1_048_576
@@ -49,16 +63,7 @@ class Settings(BaseSettings):
     @field_validator("netwatch_subnet")
     @classmethod
     def validate_private_subnet(cls, value: str) -> str:
-        network = ip_network(value, strict=True)
-        if network.version != 4:
-            raise ValueError("NETWATCH_SUBNET must be an IPv4 network")
-        if not any(network.subnet_of(private_network) for private_network in RFC1918_NETWORKS):
-            raise ValueError("NETWATCH_SUBNET must be an RFC 1918 private network")
-        if network.num_addresses > 65_536:
-            raise ValueError("NETWATCH_SUBNET is too large; use /16 or smaller")
-        if network.num_addresses < 4:
-            raise ValueError("NETWATCH_SUBNET must provide at least two usable host addresses")
-        return str(network)
+        return normalize_private_subnet(value)
 
     @field_validator("scan_interval")
     @classmethod
@@ -79,6 +84,13 @@ class Settings(BaseSettings):
     def validate_offline_threshold(cls, value: int) -> int:
         if not 1 <= value <= 20:
             raise ValueError("OFFLINE_AFTER_MISSED_SCANS must be between 1 and 20")
+        return value
+
+    @field_validator("retention_days")
+    @classmethod
+    def validate_retention_days(cls, value: int) -> int:
+        if not 1 <= value <= 3_650:
+            raise ValueError("RETENTION_DAYS must be between 1 and 3650 days")
         return value
 
     @property

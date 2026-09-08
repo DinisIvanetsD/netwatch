@@ -18,6 +18,7 @@ from services.alerts.engine import create_alert
 from services.discovery.base import DiscoveryAdapter, DiscoveryResult
 from services.discovery.system import SystemDiscoveryAdapter
 from services.realtime.manager import connection_manager
+from services.retention import prune_expired_history
 from services.scanner.coordinator import scan_coordinator
 from services.scanner.tcp import SERVICE_NAMES, tcp_service_scanner
 
@@ -205,6 +206,7 @@ class ScanService:
             scan.devices_found = count
             scan.finished_at = now
             scan.duration_ms = (perf_counter() - started) * 1000
+            await prune_expired_history(session, settings.retention_days)
             await session.commit()
         await connection_manager.broadcast(
             "scan.completed", {"scan_id": scan_id, "devices_found": count}
@@ -291,6 +293,7 @@ class ScanService:
             scan.devices_found = len(results)
             scan.finished_at = now
             scan.duration_ms = (perf_counter() - started) * 1000
+            await prune_expired_history(session, settings.retention_days)
             await session.commit()
 
         for event in persisted_events:

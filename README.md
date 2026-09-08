@@ -17,6 +17,8 @@ NetWatch is an open-source, self-hosted network monitoring dashboard for discove
 - Persisted manual scan records with demo-safe execution
 - Live dashboard updates with reconnecting WebSocket transport
 - Historical activity charts, device metrics, event filters, and LAN mapping
+- Runtime-editable network, scanner, alert, service, and retention settings
+- Confirmed historical-data cleanup that preserves device and service inventory
 - Automated backend and frontend checks through GitHub Actions
 - Docker Compose development and deployment path
 - Honest empty, loading, and error states with no generated production metrics
@@ -114,6 +116,7 @@ The normal bridge-network configuration is suitable for the dashboard and API. L
 | `DEVICE_OFFLINE_ALERTS` | `true` | Alerts after the configured missed-scan threshold |
 | `NEW_SERVICE_ALERTS` | `true` | Alerts when an approved service is newly observed |
 | `LATENCY_ALERTS` | `true` | Alerts for substantial latency increases |
+| `RETENTION_DAYS` | `30` | Days to retain metrics, events, alerts, and scan records |
 | `CORS_ORIGINS` | `http://localhost:3000` | Comma-separated browser origins |
 | `ALLOWED_HOSTS` | `localhost,127.0.0.1` | Accepted HTTP hostnames in production |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Browser-visible API base URL |
@@ -129,6 +132,8 @@ Set `NETWATCH_DEMO_MODE=true` to enable the isolated demo dataset. Demo records 
 ## API Documentation
 
 FastAPI publishes OpenAPI at `/docs` and ReDoc at `/redoc` outside production. The Phase 1 health endpoint is `GET /api/health`, and the real-time transport is available at `/ws`.
+
+Runtime configuration is available through `GET /api/settings` and `PATCH /api/settings`. Historical metrics, events, alerts, and scan records can be removed with `DELETE /api/settings/history`; device inventory, active services, and application settings are preserved.
 
 ## Security
 

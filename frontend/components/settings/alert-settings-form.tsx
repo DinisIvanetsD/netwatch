@@ -19,9 +19,22 @@ export function AlertSettingsForm({ initial }: { initial: NetWatchSettings }) {
       >,
   );
   const [message, setMessage] = useState("");
+  const [saving, setSaving] = useState(false);
   async function save() {
-    await updateAlertSettings(values);
-    setMessage("Alert rules saved.");
+    setSaving(true);
+    setMessage("");
+    try {
+      await updateAlertSettings(values);
+      setMessage("Alert rules saved.");
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Alert rules could not be saved.",
+      );
+    } finally {
+      setSaving(false);
+    }
   }
   return (
     <div className="space-y-4">
@@ -42,7 +55,9 @@ export function AlertSettingsForm({ initial }: { initial: NetWatchSettings }) {
         </label>
       ))}
       <div className="flex items-center gap-3">
-        <Button onClick={save}>Save alert rules</Button>
+        <Button onClick={save} disabled={saving}>
+          {saving ? "Saving…" : "Save alert rules"}
+        </Button>
         <span role="status" className="text-muted-foreground text-xs">
           {message}
         </span>

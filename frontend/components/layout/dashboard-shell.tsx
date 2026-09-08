@@ -254,7 +254,10 @@ export function DashboardShell({
           </div>
           <div className="ms-auto flex items-center gap-2">
             {demoMode ? <Badge variant="warning">DEMO MODE</Badge> : null}
-            <p className="text-muted-foreground hidden text-xs xl:block">
+            <p
+              className="text-muted-foreground hidden text-xs xl:block"
+              suppressHydrationWarning
+            >
               Last scan:{" "}
               {lastCompletedScan
                 ? formatRelativeTime(lastCompletedScan)

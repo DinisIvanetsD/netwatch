@@ -2,7 +2,7 @@ import { publicConfig } from "@/lib/config";
 import type { Device, DeviceListResponse, DeviceQuery } from "@/types/device";
 import type { Scan } from "@/types/scan";
 import type { ServiceListResponse } from "@/types/service";
-import type { NetWatchSettings } from "@/types/settings";
+import type { HistoryClearResult, NetWatchSettings } from "@/types/settings";
 import type { NetworkActivity, NetworkStatus } from "@/types/network";
 import type { Alert, AlertListResponse } from "@/types/alert";
 import type {
@@ -34,10 +34,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    throw new ApiError(
-      `NetWatch API request failed with status ${response.status}.`,
-      response.status,
-    );
+    const payload = (await response.json().catch(() => null)) as {
+      detail?: string | Array<{ msg?: string }>;
+    } | null;
+    const detail = payload?.detail;
+    const message =
+      typeof detail === "string"
+        ? detail
+        : Array.isArray(detail) && detail[0]?.msg
+          ? detail[0].msg.replace(/^Value error, /, "")
+          : `NetWatch API request failed with status ${response.status}.`;
+    throw new ApiError(message, response.status);
   }
 
   return (await response.json()) as T;
@@ -114,15 +121,27 @@ export async function getSettings(): Promise<NetWatchSettings> {
   return request<NetWatchSettings>("/api/settings");
 }
 
-export async function updateServiceSettings(payload: {
-  service_scan_enabled: boolean;
-  service_ports: number[];
-}): Promise<NetWatchSettings> {
+export async function updateSettings(
+  payload: Partial<NetWatchSettings>,
+): Promise<NetWatchSettings> {
   return request<NetWatchSettings>("/api/settings", {
     method: "PATCH",
     headers: { Accept: "application/json", "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
+}
+
+export async function clearHistory(): Promise<HistoryClearResult> {
+  return request<HistoryClearResult>("/api/settings/history", {
+    method: "DELETE",
+  });
+}
+
+export async function updateServiceSettings(payload: {
+  service_scan_enabled: boolean;
+  service_ports: number[];
+}): Promise<NetWatchSettings> {
+  return updateSettings(payload);
 }
 
 export async function getAlerts(): Promise<AlertListResponse> {
@@ -141,11 +160,7 @@ export async function updateAlert(
 export async function updateAlertSettings(
   payload: Record<string, boolean>,
 ): Promise<NetWatchSettings> {
-  return request<NetWatchSettings>("/api/settings", {
-    method: "PATCH",
-    headers: { Accept: "application/json", "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
+  return updateSettings(payload);
 }
 
 export async function getNetworkStatus(): Promise<NetworkStatus> {

@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
+from core.config import settings
 from database.base import Base
 from database.session import get_session
 from main import app
@@ -242,3 +243,112 @@ async def test_alert_can_be_created_read_and_resolved(
     assert update.json()["read"] is True
     assert update.json()["resolved"] is True
     assert update.json()["resolved_at"] is not None
+
+
+async def test_scanner_and_retention_settings_can_be_updated(
+    device_client: TestClient,
+) -> None:
+    original = {
+        "netwatch_subnet": settings.netwatch_subnet,
+        "scan_interval": settings.scan_interval,
+        "scan_concurrency": settings.scan_concurrency,
+        "monitoring_enabled": settings.monitoring_enabled,
+        "offline_after_missed_scans": settings.offline_after_missed_scans,
+        "retention_days": settings.retention_days,
+    }
+    try:
+        response = device_client.patch(
+            "/api/settings",
+            json={
+                "subnet": "10.42.0.0/24",
+                "scan_interval": 120,
+                "scan_concurrency": 16,
+                "monitoring_enabled": False,
+                "offline_after_missed_scans": 2,
+                "retention_days": 90,
+            },
+        )
+        invalid = device_client.patch("/api/settings", json={"subnet": "8.8.8.0/24"})
+
+        assert response.status_code == 200
+        assert response.json()["subnet"] == "10.42.0.0/24"
+        assert response.json()["scan_interval"] == 120
+        assert response.json()["monitoring_enabled"] is False
+        assert response.json()["retention_days"] == 90
+        assert invalid.status_code == 422
+    finally:
+        for key, value in original.items():
+            setattr(settings, key, value)
+
+
+async def test_clear_history_preserves_inventory_and_services(
+    device_client: TestClient,
+    device_session_factory: async_sessionmaker[AsyncSession],
+    live_device: Device,
+) -> None:
+    now = datetime.now(UTC)
+    async with device_session_factory() as session:
+        event = Event(
+            device_id=live_device.id,
+            type=EventType.DEVICE_ONLINE,
+            message="Test Router came online.",
+            severity=EventSeverity.INFO,
+            timestamp=now,
+            metadata_payload={},
+            source=DeviceSource.LIVE,
+        )
+        session.add(event)
+        await session.flush()
+        session.add_all(
+            [
+                DeviceMetric(
+                    device_id=live_device.id,
+                    timestamp=now,
+                    latency_ms=1.5,
+                    online=True,
+                ),
+                Service(
+                    device_id=live_device.id,
+                    port=443,
+                    protocol="tcp",
+                    service_name="HTTPS",
+                    first_seen=now,
+                    last_seen=now,
+                    active=True,
+                ),
+                Alert(
+                    device_id=live_device.id,
+                    event_id=event.id,
+                    type="device.online",
+                    severity=EventSeverity.INFO,
+                    title="Device online",
+                    description="Test Router came online.",
+                    created_at=now,
+                    read=False,
+                    resolved=False,
+                    source=DeviceSource.LIVE,
+                ),
+                Scan(
+                    started_at=now,
+                    finished_at=now,
+                    status=ScanStatus.COMPLETED,
+                    devices_found=1,
+                    duration_ms=20,
+                    subnet="192.168.1.0/24",
+                    source=DeviceSource.LIVE,
+                ),
+            ]
+        )
+        await session.commit()
+
+    cleared = device_client.delete("/api/settings/history")
+
+    assert cleared.status_code == 200
+    assert cleared.json() == {
+        "metrics_deleted": 1,
+        "events_deleted": 1,
+        "alerts_deleted": 1,
+        "scans_deleted": 1,
+    }
+    assert device_client.get("/api/devices").json()["total"] == 1
+    assert device_client.get("/api/services").json()["total"] == 1

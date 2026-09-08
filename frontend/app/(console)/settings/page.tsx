@@ -1,5 +1,7 @@
 import { ServiceSettingsForm } from "@/components/settings/service-settings-form";
 import { AlertSettingsForm } from "@/components/settings/alert-settings-form";
+import { DataSettingsForm } from "@/components/settings/data-settings-form";
+import { ScannerSettingsForm } from "@/components/settings/scanner-settings-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getSettings } from "@/lib/api";
 
@@ -18,20 +20,12 @@ export default async function SettingsPage() {
         </p>
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
+        <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Network</CardTitle>
+            <CardTitle>Network and scanner</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <SettingRow label="Monitored subnet" value={settings.subnet} />
-            <SettingRow
-              label="Scan interval"
-              value={`${settings.scan_interval} seconds`}
-            />
-            <SettingRow
-              label="Offline threshold"
-              value={`${settings.offline_after_missed_scans} missed scans`}
-            />
+          <CardContent>
+            <ScannerSettingsForm initial={settings} />
           </CardContent>
         </Card>
         <Card>
@@ -50,16 +44,15 @@ export default async function SettingsPage() {
             <AlertSettingsForm initial={settings} />
           </CardContent>
         </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Data retention</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <DataSettingsForm initial={settings} />
+          </CardContent>
+        </Card>
       </div>
-    </div>
-  );
-}
-
-function SettingRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-4">
-      <span className="text-muted-foreground text-sm">{label}</span>
-      <span className="font-mono text-sm">{value}</span>
     </div>
   );
 }

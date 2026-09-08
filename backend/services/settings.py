@@ -5,13 +5,33 @@ from database.session import SessionLocal
 from models.setting import AppSetting
 
 EDITABLE_KEYS = (
+    "netwatch_subnet",
+    "scan_interval",
+    "scan_concurrency",
+    "monitoring_enabled",
+    "offline_after_missed_scans",
     "service_scan_enabled",
     "service_ports",
     "new_device_alerts",
     "device_offline_alerts",
     "new_service_alerts",
     "latency_alerts",
+    "retention_days",
 )
+BOOLEAN_KEYS = {
+    "service_scan_enabled",
+    "monitoring_enabled",
+    "new_device_alerts",
+    "device_offline_alerts",
+    "new_service_alerts",
+    "latency_alerts",
+}
+INTEGER_KEYS = {
+    "scan_interval",
+    "scan_concurrency",
+    "offline_after_missed_scans",
+    "retention_days",
+}
 
 
 async def load_persisted_settings() -> None:
@@ -22,9 +42,14 @@ async def load_persisted_settings() -> None:
             ).all()
         )
     for record in records:
-        if record.key == "service_scan_enabled" and isinstance(record.value, bool):
-            settings.service_scan_enabled = record.value
+        if record.key == "netwatch_subnet" and isinstance(record.value, str):
+            settings.netwatch_subnet = record.value
         elif record.key == "service_ports" and isinstance(record.value, list):
             settings.service_ports = ",".join(str(port) for port in record.value)
-        elif record.key in EDITABLE_KEYS and isinstance(record.value, bool):
+        elif (
+            record.key in BOOLEAN_KEYS
+            and isinstance(record.value, bool)
+            or record.key in INTEGER_KEYS
+            and isinstance(record.value, int)
+        ):
             setattr(settings, record.key, record.value)

@@ -1,5 +1,7 @@
 from pydantic import BaseModel, Field, field_validator
 
+from core.config import normalize_private_subnet
+
 
 class SettingsResponse(BaseModel):
     subnet: str
@@ -13,15 +15,27 @@ class SettingsResponse(BaseModel):
     device_offline_alerts: bool
     new_service_alerts: bool
     latency_alerts: bool
+    retention_days: int
 
 
 class SettingsUpdate(BaseModel):
+    subnet: str | None = None
+    scan_interval: int | None = Field(default=None, ge=10, le=86_400)
+    scan_concurrency: int | None = Field(default=None, ge=1, le=256)
+    monitoring_enabled: bool | None = None
+    offline_after_missed_scans: int | None = Field(default=None, ge=1, le=20)
     service_scan_enabled: bool | None = None
     service_ports: list[int] | None = Field(default=None, min_length=1, max_length=64)
     new_device_alerts: bool | None = None
     device_offline_alerts: bool | None = None
     new_service_alerts: bool | None = None
     latency_alerts: bool | None = None
+    retention_days: int | None = Field(default=None, ge=1, le=3_650)
+
+    @field_validator("subnet")
+    @classmethod
+    def validate_subnet(cls, value: str | None) -> str | None:
+        return normalize_private_subnet(value) if value is not None else None
 
     @field_validator("service_ports")
     @classmethod
@@ -29,3 +43,10 @@ class SettingsUpdate(BaseModel):
         if value is not None and any(port < 1 or port > 65535 for port in value):
             raise ValueError("Ports must be between 1 and 65535")
         return list(dict.fromkeys(value)) if value is not None else None
+
+
+class HistoryClearResponse(BaseModel):
+    metrics_deleted: int
+    events_deleted: int
+    alerts_deleted: int
+    scans_deleted: int
