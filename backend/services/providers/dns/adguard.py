@@ -178,6 +178,8 @@ class AdGuardHomeProvider(DNSControlProvider):
         async with self._rules_lock:
             payload = (await self._request("GET", "/filtering/status")).json()
             current = payload.get("user_rules") if isinstance(payload, dict) else None
+            if current is None:
+                current = []
             if not isinstance(current, list) or any(not isinstance(item, str) for item in current):
                 raise AdGuardProviderError("AdGuard Home returned invalid custom filter rules")
             rules = list(current)

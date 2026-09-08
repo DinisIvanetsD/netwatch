@@ -84,6 +84,22 @@ async def test_adguard_updates_rules_without_discarding_existing_rules() -> None
     assert requests[-1].content == b'{"rules":["||existing.test^","||example.org^"]}'
 
 
+async def test_adguard_accepts_empty_rules_from_new_installation() -> None:
+    requests: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.method == "GET":
+            return httpx.Response(200, json={"user_rules": None})
+        return httpx.Response(200)
+
+    async with _client(httpx.MockTransport(handler)) as client:
+        provider = AdGuardHomeProvider("http://127.0.0.1", "admin", "secret", client=client)
+        await provider.add_domain_rule(DomainRuleRequest(domain="first.example", allow=False))
+
+    assert requests[-1].content == b'{"rules":["||first.example^"]}'
+
+
 def test_credentials_are_encrypted_and_invalid_keys_fail_closed() -> None:
     cipher = CredentialCipher(Fernet.generate_key().decode())
     token = cipher.encrypt({"password": "not-plain-text"})

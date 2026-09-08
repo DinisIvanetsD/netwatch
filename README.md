@@ -102,6 +102,12 @@ docker compose up --build
 
 The normal bridge-network configuration is suitable for the dashboard and API. Low-level ARP/ICMP discovery may require host networking or additional capabilities on Linux and behaves differently under Docker Desktop on macOS and Windows. NetWatch will expose those limitations rather than inventing results.
 
+Compose also starts the pinned AdGuard Home integration. Its administration interface is
+available at `http://localhost:8080`; first-run setup uses `http://localhost:3001`. DNS is
+published on host port `5453` in this Windows configuration because Hyper-V Internet Connection
+Sharing owns port `53`. Network-wide DNS requires port `53` on a suitable host or a router that
+supports a custom DNS port.
+
 ## Configuration
 
 | Variable | Default | Purpose |

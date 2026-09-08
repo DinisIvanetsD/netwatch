@@ -1,6 +1,20 @@
 name: netwatch
 
 services:
+  adguardhome:
+    image: adguard/adguardhome:v0.107.79
+    ports:
+      # Port 53 is currently occupied by Windows ICS on this host. Use 5453
+      # until the host DNS conflict is resolved safely.
+      - "5453:53/tcp"
+      - "5453:53/udp"
+      - "8080:80/tcp"
+      - "3001:3000/tcp"
+    volumes:
+      - adguard-work:/opt/adguardhome/work
+      - adguard-conf:/opt/adguardhome/conf
+    restart: unless-stopped
+
   backend:
     build:
       context: .
@@ -64,3 +78,5 @@ services:
 
 volumes:
   netwatch-data:
+  adguard-work:
+  adguard-conf:
