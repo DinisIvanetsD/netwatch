@@ -125,3 +125,39 @@ def test_service_observations_detect_new_and_removed_ports() -> None:
         "service.discovered",
         "service.removed",
     }
+
+
+def test_service_observations_detect_reappearing_port() -> None:
+    now = datetime.now(UTC)
+    device = Device(
+        id=1,
+        ip_address="192.168.1.20",
+        status=DeviceStatus.ONLINE,
+        source=DeviceSource.LIVE,
+        first_seen=now,
+        last_seen=now,
+        is_gateway=False,
+    )
+    ssh = Service(
+        device_id=1,
+        port=22,
+        protocol="tcp",
+        service_name="SSH",
+        first_seen=now,
+        last_seen=now,
+        active=False,
+    )
+
+    class RecordingSession:
+        def add(self, item: object) -> None:
+            raise AssertionError(f"Unexpected new service: {item}")
+
+    outcome = ProcessedScan()
+    ScanService._merge_service_observations(
+        device, {22}, {(1, 22): ssh}, outcome, now, RecordingSession()
+    )
+
+    assert ssh.active is True
+    assert len(outcome.events) == 1
+    assert outcome.events[0].type.value == "service.discovered"
+    assert outcome.events[0].metadata == {"port": 22, "protocol": "tcp"}

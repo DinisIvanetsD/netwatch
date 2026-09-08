@@ -87,9 +87,30 @@ async def get_adguard(session: SessionDependency) -> IntegrationResponse:
 
 
 @router.post("/adguard/test", response_model=ProviderCapabilityResponse)
-async def test_adguard(payload: AdGuardTestRequest) -> ProviderCapabilityResponse:
-    provider = AdGuardHomeProvider(payload.server_url, payload.username, payload.password)
-    health = await provider.test_connection()
+async def test_adguard(
+    payload: AdGuardTestRequest, session: SessionDependency
+) -> ProviderCapabilityResponse:
+    if payload.password:
+        provider = AdGuardHomeProvider(payload.server_url, payload.username, payload.password)
+        health = await provider.test_connection()
+    else:
+        integration = await get_adguard_integration(session)
+        if integration is None or not integration.encrypted_credentials:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A password is required before testing this AdGuard Home connection.",
+            )
+        configuration = integration.configuration
+        if (
+            configuration.get("server_url") != payload.server_url
+            or configuration.get("username") != payload.username
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Enter the password to test changed connection details.",
+            )
+        health = await activate_adguard(integration)
+        provider = provider_registry.dns
     return ProviderCapabilityResponse(
         provider_id=provider.provider_id,
         display_name=provider.display_name,

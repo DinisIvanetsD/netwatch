@@ -17,6 +17,9 @@ export function AdGuardSettingsForm({
   const [serverUrl, setServerUrl] = useState(initial?.server_url ?? "");
   const [username, setUsername] = useState(initial?.username ?? "");
   const [password, setPassword] = useState("");
+  const [passwordSet, setPasswordSet] = useState(
+    initial?.password_set ?? false,
+  );
   const [enabled, setEnabled] = useState(initial?.enabled ?? true);
   const [status, setStatus] = useState(initial?.status ?? "not_configured");
   const [message, setMessage] = useState(
@@ -25,7 +28,7 @@ export function AdGuardSettingsForm({
   const [working, setWorking] = useState<"test" | "save" | null>(null);
 
   async function testConnection() {
-    if (!password) {
+    if (!password && !passwordSet) {
       setMessage("Enter the AdGuard Home password to test the connection.");
       return;
     }
@@ -34,7 +37,7 @@ export function AdGuardSettingsForm({
       const result = await testAdGuard({
         server_url: serverUrl.trim(),
         username: username.trim(),
-        password,
+        ...(password ? { password } : {}),
       });
       setStatus(result.status);
       setMessage(result.message);
@@ -59,6 +62,7 @@ export function AdGuardSettingsForm({
       });
       setStatus(result.status);
       setMessage(result.message);
+      setPasswordSet(result.password_set);
       setPassword("");
     } catch (error) {
       setStatus("error");
@@ -119,11 +123,7 @@ export function AdGuardSettingsForm({
           />
         </Field>
         <Field
-          label={
-            initial?.password_set
-              ? "Password (leave blank to keep)"
-              : "Password"
-          }
+          label={passwordSet ? "Password (leave blank to keep)" : "Password"}
           htmlFor="adguard-password"
         >
           <Input

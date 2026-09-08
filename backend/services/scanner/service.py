@@ -15,7 +15,7 @@ from models.metric import DeviceMetric
 from models.scan import Scan, ScanStatus
 from models.service import Service
 from services.activity import sync_dns_activity
-from services.alerts.engine import create_alert
+from services.alerts.lifecycle import reconcile_alerts
 from services.discovery.base import DiscoveryAdapter, DiscoveryResult
 from services.discovery.system import SystemDiscoveryAdapter
 from services.realtime.manager import connection_manager
@@ -281,11 +281,13 @@ class ScanService:
             ]
             session.add_all(persisted_events)
             await session.flush()
-            persisted_alerts = [
-                alert
-                for event in persisted_events
-                if (alert := create_alert(event, DeviceSource.LIVE)) is not None
-            ]
+            persisted_alerts = await reconcile_alerts(
+                session,
+                source=DeviceSource.LIVE,
+                devices=[*existing.values(), *outcome.created],
+                services=known_services.values() if service_results is not None else [],
+                events=persisted_events,
+            )
             session.add_all(persisted_alerts)
             scan = await session.get(Scan, scan_id)
             if scan is None:
@@ -354,9 +356,21 @@ class ScanService:
                         {"port": port, "protocol": "tcp"},
                     )
                 )
+            elif service.active:
+                service.active = True
+                service.last_seen = now
             else:
                 service.active = True
                 service.last_seen = now
+                outcome.events.append(
+                    PendingEvent(
+                        device,
+                        EventType.SERVICE_DISCOVERED,
+                        f"TCP {port} / {service.service_name} was observed again.",
+                        EventSeverity.LOW,
+                        {"port": port, "protocol": "tcp"},
+                    )
+                )
         for (device_id, port), service in known_services.items():
             if device_id == device.id and service.active and port not in open_ports:
                 service.active = False

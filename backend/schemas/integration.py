@@ -35,7 +35,7 @@ class AdGuardConfigurationRequest(BaseModel):
 class AdGuardTestRequest(BaseModel):
     server_url: str
     username: str = Field(min_length=1, max_length=100)
-    password: str = Field(min_length=1, max_length=500)
+    password: str | None = Field(default=None, min_length=1, max_length=500)
 
     @field_validator("server_url")
     @classmethod

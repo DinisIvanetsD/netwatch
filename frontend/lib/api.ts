@@ -202,7 +202,7 @@ export async function configureAdGuard(
 export async function testAdGuard(payload: {
   server_url: string;
   username: string;
-  password: string;
+  password?: string;
 }): Promise<{
   status: ProviderStatus;
   message: string;
