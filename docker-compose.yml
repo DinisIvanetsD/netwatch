@@ -47,13 +47,14 @@ services:
     environment:
       NETWATCH_DEMO_MODE: ${NETWATCH_DEMO_MODE:-false}
       NETWATCH_SUBNET: ${NETWATCH_SUBNET:-192.168.1.0/24}
+      NETWATCH_INTERNAL_API_URL: http://backend:8000
     ports:
       - "3000:3000"
     depends_on:
       backend:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:3000/api/health"]
       interval: 30s
       timeout: 5s
       retries: 3

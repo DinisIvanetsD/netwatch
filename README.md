@@ -118,6 +118,7 @@ The normal bridge-network configuration is suitable for the dashboard and API. L
 | `ALLOWED_HOSTS` | `localhost,127.0.0.1` | Accepted HTTP hostnames in production |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Browser-visible API base URL |
 | `NEXT_PUBLIC_WS_URL` | `ws://localhost:8000/ws` | Browser-visible WebSocket endpoint |
+| `NETWATCH_INTERNAL_API_URL` | `http://backend:8000` in Compose | Backend URL used by server-rendered frontend pages |
 
 Configuration is validated at backend startup. Public networks, host addresses supplied as networks, IPv6 targets, overly broad ranges, unsafe intervals, and unbounded concurrency are rejected.
 

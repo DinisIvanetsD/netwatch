@@ -23,7 +23,11 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${publicConfig.apiUrl}${path}`, {
+  const apiUrl =
+    typeof window === "undefined"
+      ? (process.env.NETWATCH_INTERNAL_API_URL ?? publicConfig.apiUrl)
+      : publicConfig.apiUrl;
+  const response = await fetch(`${apiUrl}${path}`, {
     cache: "no-store",
     headers: { Accept: "application/json" },
     ...init,
