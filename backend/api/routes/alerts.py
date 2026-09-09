@@ -2,10 +2,11 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.routes.devices import active_source
+from core.config import settings
 from database.session import get_session
 from models.alert import Alert
 from models.device import Device
@@ -40,7 +41,10 @@ async def list_alerts(
     severity: EventSeverity | None = None,
     unresolved_only: Annotated[bool, Query()] = False,
 ) -> AlertListResponse:
-    filters = [Alert.source == active_source()]
+    filters = [
+        Alert.source == active_source(),
+        or_(Alert.device_id.is_(None), Device.network_cidr == settings.netwatch_subnet),
+    ]
     if severity is not None:
         filters.append(Alert.severity == severity)
     if unresolved_only:
@@ -48,7 +52,7 @@ async def list_alerts(
     rows = (
         await session.execute(
             select(Alert, Device.name, Device.hostname, Device.ip_address)
-            .outerjoin(Device)
+            .outerjoin(Device, Alert.device_id == Device.id)
             .where(*filters)
             .order_by(Alert.created_at.desc())
         )
@@ -61,7 +65,13 @@ async def update_alert(
     alert_id: int, payload: AlertUpdate, session: SessionDependency
 ) -> AlertResponse:
     alert = await session.scalar(
-        select(Alert).where(Alert.id == alert_id, Alert.source == active_source())
+        select(Alert)
+        .outerjoin(Device, Alert.device_id == Device.id)
+        .where(
+            Alert.id == alert_id,
+            Alert.source == active_source(),
+            or_(Alert.device_id.is_(None), Device.network_cidr == settings.netwatch_subnet),
+        )
     )
     if alert is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Alert not found.")
@@ -74,7 +84,7 @@ async def update_alert(
     row = (
         await session.execute(
             select(Alert, Device.name, Device.hostname, Device.ip_address)
-            .outerjoin(Device)
+            .outerjoin(Device, Alert.device_id == Device.id)
             .where(Alert.id == alert.id)
         )
     ).one()

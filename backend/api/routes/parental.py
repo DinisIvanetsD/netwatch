@@ -3,7 +3,7 @@ from typing import Annotated
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -80,7 +80,11 @@ async def _profile_response(
         (
             await session.scalars(
                 select(Device.id)
-                .where(Device.source == active_source(), Device.profile_id == profile.id)
+                .where(
+                    Device.source == active_source(),
+                    Device.network_cidr == settings.netwatch_subnet,
+                    Device.profile_id == profile.id,
+                )
                 .order_by(Device.id)
             )
         ).all()
@@ -98,6 +102,7 @@ async def _profile_response(
                 .join(Device, Device.id == InternetActivity.device_id)
                 .where(
                     Device.source == active_source(),
+                    Device.network_cidr == settings.netwatch_subnet,
                     InternetActivity.blocked.is_(True),
                     InternetActivity.timestamp >= start_of_day,
                     or_(*activity_scope),
@@ -244,6 +249,19 @@ async def delete_profile(profile_id: int, session: SessionDependency) -> Respons
             DomainRule.scope_id == profile.id,
         )
     )
+    await session.execute(
+        update(Device)
+        .where(Device.source == active_source(), Device.profile_id == profile.id)
+        .values(profile_id=None)
+    )
+    await session.execute(
+        update(InternetActivity)
+        .where(InternetActivity.profile_id == profile.id)
+        .values(profile_id=None)
+    )
+    await session.execute(
+        delete(AccessSchedule).where(AccessSchedule.profile_id == profile.id)
+    )
     await session.delete(profile)
     await session.commit()
     await connection_manager.broadcast("profile.deleted", {"profile_id": profile_id})
@@ -263,6 +281,7 @@ async def assign_profile_devices(
             await session.scalars(
                 select(Device).where(
                     Device.source == active_source(),
+                    Device.network_cidr == settings.netwatch_subnet,
                     or_(Device.profile_id == profile.id, Device.id.in_(requested)),
                 )
             )
@@ -337,7 +356,11 @@ async def create_domain_rule(
         await _get_profile(session, payload.scope_id or 0)
     elif payload.scope_type == RuleScope.DEVICE:
         device = await session.scalar(
-            select(Device.id).where(Device.id == payload.scope_id, Device.source == active_source())
+            select(Device.id).where(
+                Device.id == payload.scope_id,
+                Device.source == active_source(),
+                Device.network_cidr == settings.netwatch_subnet,
+            )
         )
         if device is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found.")

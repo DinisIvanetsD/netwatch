@@ -39,6 +39,7 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
       NETWATCH_SECRET_KEY: ${NETWATCH_SECRET_KEY:-}
+      ADGUARD_DNS_PORT: ${ADGUARD_DNS_PORT:-53}
     ports:
       - "8000:8000"
     volumes:

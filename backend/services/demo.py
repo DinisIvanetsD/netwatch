@@ -108,7 +108,12 @@ async def seed_demo_devices() -> None:
 
     async with SessionLocal() as session:
         existing = await session.scalar(
-            select(func.count()).select_from(Device).where(Device.source == DeviceSource.DEMO)
+            select(func.count())
+            .select_from(Device)
+            .where(
+                Device.source == DeviceSource.DEMO,
+                Device.network_cidr == settings.netwatch_subnet,
+            )
         )
         if existing:
             return
@@ -151,6 +156,7 @@ async def seed_demo_devices() -> None:
                     vendor=vendor,
                     status=DeviceStatus.ONLINE if online else DeviceStatus.OFFLINE,
                     source=DeviceSource.DEMO,
+                    network_cidr=settings.netwatch_subnet,
                     latency_ms=latency_ms,
                     first_seen=now - timedelta(days=14 - index),
                     last_seen=now
@@ -185,6 +191,9 @@ async def seed_demo_history() -> None:
                 )
             ).all()
         )
+        devices = [
+            device for device in devices if device.network_cidr == settings.netwatch_subnet
+        ]
         if not devices:
             return
 
@@ -269,6 +278,9 @@ async def seed_demo_services() -> None:
                 )
             ).all()
         )
+        devices = [
+            device for device in devices if device.network_cidr == settings.netwatch_subnet
+        ]
         now = datetime.now(UTC)
         assignments = {
             0: (53, 80, 443),
@@ -312,6 +324,11 @@ async def seed_demo_internet_activity() -> None:
             for device in (
                 await session.scalars(select(Device).where(Device.source == DeviceSource.DEMO))
             ).all()
+        }
+        devices = {
+            name: device
+            for name, device in devices.items()
+            if device.network_cidr == settings.netwatch_subnet
         }
         now = datetime.now(UTC)
         observations = (

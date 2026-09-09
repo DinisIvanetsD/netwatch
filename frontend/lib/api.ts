@@ -5,6 +5,7 @@ import type { ServiceListResponse } from "@/types/service";
 import type { HistoryClearResult, NetWatchSettings } from "@/types/settings";
 import type { NetworkActivity, NetworkStatus } from "@/types/network";
 import type {
+  InternetActivityDiagnostics,
   InternetActivityQuery,
   InternetActivityList,
   InternetActivitySummary,
@@ -277,6 +278,12 @@ export async function getInternetActivitySummary(
   if (deviceId) params.set("device_id", String(deviceId));
   return request<InternetActivitySummary>(
     `/api/internet-activity/summary?${params.toString()}`,
+  );
+}
+
+export async function getInternetActivityDiagnostics(): Promise<InternetActivityDiagnostics> {
+  return request<InternetActivityDiagnostics>(
+    "/api/internet-activity/diagnostics",
   );
 }
 

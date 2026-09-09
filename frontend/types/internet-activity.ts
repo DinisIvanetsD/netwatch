@@ -40,6 +40,26 @@ export interface InternetActivitySummary {
   visibility: "dns_metadata";
 }
 
+export interface InternetActivityDiagnostics {
+  status:
+    | "ready"
+    | "not_configured"
+    | "provider_error"
+    | "no_queries"
+    | "unmatched_clients";
+  provider_id: string;
+  provider_name: string;
+  provider_status: string;
+  network_cidr: string;
+  dns_port: number;
+  records_checked: number;
+  matched_records: number;
+  matched_devices: number;
+  unmatched_clients: string[];
+  message: string;
+  steps: string[];
+}
+
 export interface InternetActivityQuery {
   deviceId?: number;
   category?: string;

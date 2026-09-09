@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.config import settings
 from models.control import DomainRule
 from models.device import Device, DeviceSource
 from services.providers.common import CapabilityUnavailableError
@@ -24,7 +25,11 @@ async def _rule_clients(
         return None
     if rule.scope_type == "device":
         device = await session.scalar(
-            select(Device).where(Device.id == rule.scope_id, Device.source == source)
+            select(Device).where(
+                Device.id == rule.scope_id,
+                Device.source == source,
+                Device.network_cidr == settings.netwatch_subnet,
+            )
         )
         return (device.ip_address,) if device else ()
     if rule.scope_type == "profile":
@@ -32,7 +37,11 @@ async def _rule_clients(
             (
                 await session.scalars(
                     select(Device.ip_address)
-                    .where(Device.profile_id == rule.scope_id, Device.source == source)
+                    .where(
+                        Device.profile_id == rule.scope_id,
+                        Device.source == source,
+                        Device.network_cidr == settings.netwatch_subnet,
+                    )
                     .order_by(Device.ip_address)
                 )
             ).all()
@@ -161,7 +170,11 @@ async def reconcile_device_rules(
     session: AsyncSession, device_id: int, source: DeviceSource
 ) -> None:
     device = await session.scalar(
-        select(Device).where(Device.id == device_id, Device.source == source)
+        select(Device).where(
+            Device.id == device_id,
+            Device.source == source,
+            Device.network_cidr == settings.netwatch_subnet,
+        )
     )
     profile_ids = [device.profile_id] if device and device.profile_id else []
     rules = list(

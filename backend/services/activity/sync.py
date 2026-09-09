@@ -3,6 +3,7 @@ import logging
 
 from sqlalchemy import select
 
+from core.config import settings
 from database.session import SessionLocal
 from models.device import Device, DeviceSource
 from models.internet_activity import InternetActivity
@@ -28,7 +29,12 @@ async def sync_dns_activity(limit: int = 500) -> int:
         devices = {
             device.ip_address: device
             for device in (
-                await session.scalars(select(Device).where(Device.source == DeviceSource.LIVE))
+                await session.scalars(
+                    select(Device).where(
+                        Device.source == DeviceSource.LIVE,
+                        Device.network_cidr == settings.netwatch_subnet,
+                    )
+                )
             ).all()
         }
         pending: dict[str, tuple[Device, DNSQueryRecord]] = {}

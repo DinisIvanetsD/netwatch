@@ -13,6 +13,7 @@ class DeviceRepository:
         self,
         *,
         source: DeviceSource,
+        network_cidr: str,
         page: int,
         per_page: int,
         status: DeviceStatus | None,
@@ -20,7 +21,7 @@ class DeviceRepository:
         sort_by: DeviceSortField,
         sort_order: SortOrder,
     ) -> tuple[list[Device], int]:
-        filters = [Device.source == source]
+        filters = [Device.source == source, Device.network_cidr == network_cidr]
         if status is not None:
             filters.append(Device.status == status)
         if search:
@@ -58,7 +59,13 @@ class DeviceRepository:
         total = int((await self.session.scalar(count_query)) or 0)
         return devices, total
 
-    async def get(self, device_id: int, *, source: DeviceSource) -> Device | None:
+    async def get(
+        self, device_id: int, *, source: DeviceSource, network_cidr: str
+    ) -> Device | None:
         return await self.session.scalar(
-            select(Device).where(Device.id == device_id, Device.source == source)
+            select(Device).where(
+                Device.id == device_id,
+                Device.source == source,
+                Device.network_cidr == network_cidr,
+            )
         )

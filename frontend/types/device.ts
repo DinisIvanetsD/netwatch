@@ -7,6 +7,7 @@ export interface Device {
   id: number;
   name: string | null;
   ip_address: string;
+  network_cidr: string;
   mac_address: string | null;
   hostname: string | null;
   vendor: string | null;

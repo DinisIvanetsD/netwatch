@@ -20,7 +20,8 @@ from models.metric import DeviceMetric
 from models.scan import Scan, ScanStatus
 from models.service import Service
 from services.control.schedules import evaluate_schedule
-from services.providers.dns import UnconfiguredDNSProvider
+from services.providers.common import ProviderHealth, ProviderStatus
+from services.providers.dns import DNSCapability, DNSQueryRecord, UnconfiguredDNSProvider
 from services.providers.network import GenericReadOnlyProvider
 from services.providers.registry import provider_registry
 from services.retention import prune_expired_history
@@ -66,6 +67,7 @@ async def live_device(device_session_factory: async_sessionmaker[AsyncSession]) 
             vendor="Test Vendor",
             status=DeviceStatus.ONLINE,
             source=DeviceSource.LIVE,
+            network_cidr="192.168.1.0/24",
             latency_ms=1.5,
             first_seen=now,
             last_seen=now,
@@ -89,6 +91,49 @@ async def test_list_devices_returns_paginated_inventory(
     assert body["items"][0]["id"] == live_device.id
     assert body["items"][0]["status"] == "online"
     assert body["items"][0]["last_seen"].endswith("Z")
+
+
+async def test_inventory_is_scoped_to_the_current_network(
+    device_client: TestClient,
+    device_session_factory: async_sessionmaker[AsyncSession],
+    live_device: Device,
+) -> None:
+    now = datetime.now(UTC)
+    async with device_session_factory() as session:
+        old_network_device = Device(
+            name="Previous network device",
+            ip_address="10.42.0.5",
+            status=DeviceStatus.ONLINE,
+            source=DeviceSource.LIVE,
+            network_cidr="10.42.0.0/24",
+            latency_ms=4.0,
+            first_seen=now,
+            last_seen=now,
+            is_gateway=False,
+        )
+        session.add(old_network_device)
+        await session.flush()
+        session.add(
+            Service(
+                device_id=old_network_device.id,
+                port=22,
+                protocol="tcp",
+                service_name="SSH",
+                first_seen=now,
+                last_seen=now,
+                active=True,
+            )
+        )
+        await session.commit()
+
+    inventory = device_client.get("/api/devices")
+    network = device_client.get("/api/network/status")
+    services = device_client.get("/api/services")
+
+    assert inventory.status_code == 200
+    assert [item["id"] for item in inventory.json()["items"]] == [live_device.id]
+    assert network.json()["total_devices"] == 1
+    assert all(item["service_name"] != "SSH" for item in services.json()["items"])
 
 
 async def test_device_detail_returns_404_for_unknown_device(device_client: TestClient) -> None:
@@ -478,6 +523,85 @@ async def test_parental_profile_assignment_schedule_and_domain_rule(
         provider_registry.dns = original_dns
 
 
+async def test_deleting_profile_removes_assignments_and_schedules(
+    device_client: TestClient,
+    device_session_factory: async_sessionmaker[AsyncSession],
+    live_device: Device,
+) -> None:
+    created = device_client.post(
+        "/api/parental/profiles",
+        json={
+            "name": "Temporary",
+            "internet_enabled": True,
+            "safe_search_enabled": False,
+            "blocked_categories": [],
+        },
+    )
+    assert created.status_code == 201
+    profile_id = created.json()["id"]
+    assigned = device_client.put(
+        f"/api/parental/profiles/{profile_id}/devices",
+        json={"device_ids": [live_device.id]},
+    )
+    assert assigned.status_code == 200
+    scheduled = device_client.put(
+        f"/api/parental/profiles/{profile_id}/schedules",
+        json={"schedules": [{"weekday": 0, "start_minute": 420, "end_minute": 1_320}]},
+    )
+    assert scheduled.status_code == 200
+
+    deleted = device_client.delete(f"/api/parental/profiles/{profile_id}")
+
+    assert deleted.status_code == 204
+    async with device_session_factory() as session:
+        stored_device = await session.get(Device, live_device.id)
+        remaining_schedules = list(
+            (
+                await session.scalars(
+                    select(AccessSchedule).where(AccessSchedule.profile_id == profile_id)
+                )
+            ).all()
+        )
+    assert stored_device is not None
+    assert stored_device.profile_id is None
+    assert remaining_schedules == []
+
+
+async def test_marking_gateway_keeps_only_one_gateway_per_network(
+    device_client: TestClient,
+    device_session_factory: async_sessionmaker[AsyncSession],
+    live_device: Device,
+) -> None:
+    now = datetime.now(UTC)
+    async with device_session_factory() as session:
+        laptop = Device(
+            name="Laptop",
+            ip_address="192.168.1.20",
+            status=DeviceStatus.ONLINE,
+            source=DeviceSource.LIVE,
+            network_cidr="192.168.1.0/24",
+            latency_ms=2.0,
+            first_seen=now,
+            last_seen=now,
+            is_gateway=False,
+        )
+        session.add(laptop)
+        await session.commit()
+        await session.refresh(laptop)
+
+    updated = device_client.patch(
+        f"/api/devices/{laptop.id}/identity",
+        json={"is_gateway": True},
+    )
+
+    assert updated.status_code == 200
+    assert updated.json()["is_gateway"] is True
+    async with device_session_factory() as session:
+        previous_gateway = await session.get(Device, live_device.id)
+    assert previous_gateway is not None
+    assert previous_gateway.is_gateway is False
+
+
 async def test_unsupported_router_action_is_audited_without_changing_device(
     device_client: TestClient,
     device_session_factory: async_sessionmaker[AsyncSession],
@@ -574,6 +698,57 @@ async def test_blocked_request_log_explains_profile_rule(
     assert activity.json()["items"][0]["source_ip"] == "192.168.1.1"
     assert summary.status_code == 200
     assert summary.json()["blocked_queries"] == 1
+
+
+async def test_internet_activity_diagnostics_matches_current_network_devices(
+    device_client: TestClient,
+    live_device: Device,
+) -> None:
+    class DiagnosticDNSProvider:
+        provider_id = "diagnostic_dns"
+        display_name = "Diagnostic DNS"
+        capabilities = frozenset({DNSCapability.QUERY_HISTORY})
+
+        def supports(self, capability: DNSCapability) -> bool:
+            return capability in self.capabilities
+
+        async def test_connection(self) -> ProviderHealth:
+            return ProviderHealth(ProviderStatus.CONNECTED, "Connected")
+
+        async def query_history(
+            self, *, limit: int = 100, client: str | None = None
+        ) -> list[DNSQueryRecord]:
+            return [
+                DNSQueryRecord(
+                    timestamp=datetime.now(UTC),
+                    client=live_device.ip_address,
+                    domain="example.com",
+                    query_type="A",
+                    status="NOERROR",
+                    blocked=False,
+                ),
+                DNSQueryRecord(
+                    timestamp=datetime.now(UTC),
+                    client="10.42.0.5",
+                    domain="old-network.example",
+                    query_type="A",
+                    status="NOERROR",
+                    blocked=False,
+                ),
+            ]
+
+    original_dns = provider_registry.dns
+    provider_registry.dns = DiagnosticDNSProvider()  # type: ignore[assignment]
+    try:
+        response = device_client.get("/api/internet-activity/diagnostics")
+    finally:
+        provider_registry.dns = original_dns
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "ready"
+    assert response.json()["matched_devices"] == 1
+    assert response.json()["matched_records"] == 1
+    assert response.json()["unmatched_clients"] == ["10.42.0.5"]
 
 
 def test_schedule_uses_next_real_state_change_for_adjacent_ranges() -> None:

@@ -99,6 +99,7 @@ export interface DeviceIdentityInput {
   device_type?: string | null;
   owner?: string | null;
   profile_id?: number | null;
+  is_gateway?: boolean;
 }
 
 export type DeviceControlAction =

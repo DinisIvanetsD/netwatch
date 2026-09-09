@@ -239,6 +239,7 @@ class DeviceIdentityUpdate(BaseModel):
     device_type: str | None = Field(default=None, max_length=40)
     owner: str | None = Field(default=None, max_length=120)
     profile_id: int | None = Field(default=None, ge=1)
+    is_gateway: bool | None = None
 
     @field_validator("name", "device_type", "owner")
     @classmethod

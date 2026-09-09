@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
@@ -50,3 +51,24 @@ class InternetActivitySummaryResponse(BaseModel):
     top_services: list[dict[str, int | str]]
     categories: list[dict[str, int | str]]
     visibility: str = "dns_metadata"
+
+
+class InternetActivityDiagnosticsResponse(BaseModel):
+    status: Literal[
+        "ready",
+        "not_configured",
+        "provider_error",
+        "no_queries",
+        "unmatched_clients",
+    ]
+    provider_id: str
+    provider_name: str
+    provider_status: str
+    network_cidr: str
+    dns_port: int
+    records_checked: int
+    matched_records: int
+    matched_devices: int
+    unmatched_clients: list[str]
+    message: str
+    steps: list[str]

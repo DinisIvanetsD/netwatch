@@ -56,6 +56,7 @@ class Settings(BaseSettings):
     allowed_hosts: str = "localhost,127.0.0.1"
     max_request_size_bytes: int = 1_048_576
     netwatch_secret_key: str | None = None
+    adguard_dns_port: int = 53
 
     @field_validator("database_url", mode="before")
     @classmethod
@@ -97,6 +98,13 @@ class Settings(BaseSettings):
     def validate_retention_days(cls, value: int) -> int:
         if not 1 <= value <= 3_650:
             raise ValueError("RETENTION_DAYS must be between 1 and 3650 days")
+        return value
+
+    @field_validator("adguard_dns_port")
+    @classmethod
+    def validate_adguard_dns_port(cls, value: int) -> int:
+        if not 1 <= value <= 65_535:
+            raise ValueError("ADGUARD_DNS_PORT must be a valid TCP/UDP port")
         return value
 
     @field_validator("netwatch_timezone")

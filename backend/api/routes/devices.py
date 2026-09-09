@@ -6,6 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.dependencies import active_source
+from core.config import settings
 from database.repositories.device import DeviceRepository
 from database.session import get_session
 from models.device import DeviceStatus
@@ -32,6 +33,7 @@ async def list_devices(
     repository = DeviceRepository(session)
     devices, total = await repository.list(
         source=active_source(),
+        network_cidr=settings.netwatch_subnet,
         page=page,
         per_page=per_page,
         status=device_status,
@@ -65,7 +67,11 @@ async def list_devices(
 
 @router.get("/{device_id}", response_model=DeviceResponse)
 async def get_device(device_id: int, session: SessionDependency) -> DeviceResponse:
-    device = await DeviceRepository(session).get(device_id, source=active_source())
+    device = await DeviceRepository(session).get(
+        device_id,
+        source=active_source(),
+        network_cidr=settings.netwatch_subnet,
+    )
     if device is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -90,7 +96,11 @@ async def get_device_metrics(
     page: Annotated[int, Query(ge=1)] = 1,
     per_page: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> MetricListResponse:
-    device = await DeviceRepository(session).get(device_id, source=active_source())
+    device = await DeviceRepository(session).get(
+        device_id,
+        source=active_source(),
+        network_cidr=settings.netwatch_subnet,
+    )
     if device is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found.")
     filters = [DeviceMetric.device_id == device_id]
@@ -124,7 +134,11 @@ async def get_device_events(
     page: Annotated[int, Query(ge=1)] = 1,
     per_page: Annotated[int, Query(ge=1, le=100)] = 25,
 ) -> EventListResponse:
-    device = await DeviceRepository(session).get(device_id, source=active_source())
+    device = await DeviceRepository(session).get(
+        device_id,
+        source=active_source(),
+        network_cidr=settings.netwatch_subnet,
+    )
     if device is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found.")
     filters = [Event.device_id == device_id, Event.source == active_source()]

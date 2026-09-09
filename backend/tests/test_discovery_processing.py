@@ -22,6 +22,7 @@ def test_discovery_results_create_new_device_and_restore_known_device() -> None:
         vendor=None,
         status=DeviceStatus.OFFLINE,
         source=DeviceSource.LIVE,
+        network_cidr="192.168.1.0/24",
         latency_ms=None,
         first_seen=before,
         last_seen=before,
@@ -51,6 +52,7 @@ def test_discovery_results_create_new_device_and_restore_known_device() -> None:
     assert len(created) == 1
     assert created[0].status == DeviceStatus.NEW
     assert created[0].ip_address == "192.168.1.11"
+    assert created[0].network_cidr == "192.168.1.0/24"
 
 
 def test_device_requires_repeated_misses_before_offline_then_recovers() -> None:
@@ -60,6 +62,7 @@ def test_device_requires_repeated_misses_before_offline_then_recovers() -> None:
         ip_address="192.168.1.20",
         status=DeviceStatus.ONLINE,
         source=DeviceSource.LIVE,
+        network_cidr="192.168.1.0/24",
         latency_ms=5.0,
         first_seen=now,
         last_seen=now,
@@ -93,6 +96,7 @@ def test_service_observations_detect_new_and_removed_ports() -> None:
         ip_address="192.168.1.20",
         status=DeviceStatus.ONLINE,
         source=DeviceSource.LIVE,
+        network_cidr="192.168.1.0/24",
         first_seen=now,
         last_seen=now,
         is_gateway=False,
@@ -134,6 +138,7 @@ def test_service_observations_detect_reappearing_port() -> None:
         ip_address="192.168.1.20",
         status=DeviceStatus.ONLINE,
         source=DeviceSource.LIVE,
+        network_cidr="192.168.1.0/24",
         first_seen=now,
         last_seen=now,
         is_gateway=False,

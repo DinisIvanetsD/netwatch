@@ -189,6 +189,7 @@ async def resume_expired_pauses(session: AsyncSession, source: DeviceSource) -> 
             await session.scalars(
                 select(Device).where(
                     Device.source == source,
+                    Device.network_cidr == settings.netwatch_subnet,
                     Device.internet_access == "paused",
                     Device.paused_until.is_not(None),
                     Device.paused_until <= now,

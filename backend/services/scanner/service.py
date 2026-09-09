@@ -50,9 +50,12 @@ def process_discovery_results(
     results: list[DiscoveryResult],
     now: datetime,
     offline_threshold: int,
+    *,
+    network_cidr: str | None = None,
 ) -> ProcessedScan:
     outcome = ProcessedScan()
     observed_addresses: set[str] = set()
+    active_network_cidr = network_cidr or settings.netwatch_subnet
 
     for result in results:
         observed_addresses.add(result.ip_address)
@@ -67,6 +70,7 @@ def process_discovery_results(
                 vendor=None,
                 status=DeviceStatus.NEW,
                 source=DeviceSource.LIVE,
+                network_cidr=active_network_cidr,
                 latency_ms=result.latency_ms,
                 first_seen=now,
                 last_seen=now,
@@ -196,6 +200,11 @@ class ScanService:
                     await session.scalars(select(Device).where(Device.source == DeviceSource.DEMO))
                 ).all()
             )
+            devices = [
+                device
+                for device in devices
+                if device.network_cidr == settings.netwatch_subnet
+            ]
             count = len(devices)
             now = datetime.now(UTC)
             session.add_all(
@@ -232,11 +241,20 @@ class ScanService:
             existing = {
                 device.ip_address: device
                 for device in (
-                    await session.scalars(select(Device).where(Device.source == DeviceSource.LIVE))
+                    await session.scalars(
+                        select(Device).where(
+                            Device.source == DeviceSource.LIVE,
+                            Device.network_cidr == settings.netwatch_subnet,
+                        )
+                    )
                 ).all()
             }
             outcome = process_discovery_results(
-                existing, results, now, settings.offline_after_missed_scans
+                existing,
+                results,
+                now,
+                settings.offline_after_missed_scans,
+                network_cidr=settings.netwatch_subnet,
             )
             session.add_all(outcome.created)
             await session.flush()

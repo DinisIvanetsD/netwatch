@@ -24,6 +24,7 @@ const device: Device = {
   id: 7,
   name: null,
   ip_address: "192.168.1.72",
+  network_cidr: "192.168.1.0/24",
   mac_address: "AA:BB:CC:DD:EE:FF",
   hostname: null,
   vendor: "Xiaomi",

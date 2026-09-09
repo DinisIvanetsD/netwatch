@@ -1,5 +1,13 @@
 import Link from "next/link";
-import { Ban, Eye, Globe2, MonitorSmartphone, Search } from "lucide-react";
+import {
+  Ban,
+  CircleCheck,
+  Eye,
+  Globe2,
+  MonitorSmartphone,
+  Search,
+  TriangleAlert,
+} from "lucide-react";
 
 import { EmptyState } from "@/components/empty-state";
 import { MetricCard } from "@/components/metric-card";
@@ -19,6 +27,7 @@ import {
 import {
   getAllDevices,
   getInternetActivity,
+  getInternetActivityDiagnostics,
   getInternetActivitySummary,
 } from "@/lib/api";
 import {
@@ -74,7 +83,7 @@ export default async function InternetActivityPage({
       : params.result === "allowed"
         ? false
         : undefined;
-  const [activity, summary, devices] = await Promise.all([
+  const [activity, summary, devices, diagnostics] = await Promise.all([
     getInternetActivity({
       deviceId,
       blocked,
@@ -85,6 +94,7 @@ export default async function InternetActivityPage({
     }),
     getInternetActivitySummary(deviceId, hours),
     getAllDevices({ sortBy: "name", sortOrder: "asc" }),
+    getInternetActivityDiagnostics(),
   ]);
 
   return (
@@ -116,6 +126,62 @@ export default async function InternetActivityPage({
           </p>
         </div>
       </div>
+
+      <Card
+        className={
+          diagnostics.status === "ready"
+            ? "border-emerald-500/25 bg-emerald-500/5"
+            : "border-amber-500/25 bg-amber-500/5"
+        }
+      >
+        <CardContent className="flex items-start gap-3 pt-5">
+          {diagnostics.status === "ready" ? (
+            <CircleCheck
+              className="mt-0.5 size-5 shrink-0 text-emerald-400"
+              aria-hidden="true"
+            />
+          ) : (
+            <TriangleAlert
+              className="mt-0.5 size-5 shrink-0 text-amber-300"
+              aria-hidden="true"
+            />
+          )}
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-semibold">
+                {diagnostics.status === "ready"
+                  ? "DNS activity is working"
+                  : "DNS activity needs setup"}
+              </p>
+              <Badge
+                variant={diagnostics.status === "ready" ? "success" : "warning"}
+              >
+                {diagnostics.provider_name}
+              </Badge>
+            </div>
+            <p className="text-muted-foreground mt-1 text-xs leading-5">
+              {diagnostics.message}
+            </p>
+            {diagnostics.status !== "ready" ? (
+              <ol className="text-muted-foreground mt-3 list-decimal space-y-1 pl-4 text-xs leading-5">
+                {diagnostics.steps.map((step) => (
+                  <li key={step}>{step}</li>
+                ))}
+              </ol>
+            ) : (
+              <p className="text-muted-foreground mt-2 text-xs">
+                {diagnostics.matched_records} recent records matched to{" "}
+                {diagnostics.matched_devices} current devices.
+              </p>
+            )}
+            {diagnostics.status !== "ready" ? (
+              <Button asChild variant="outline" size="sm" className="mt-3">
+                <Link href="/settings">Open DNS settings</Link>
+              </Button>
+            ) : null}
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
@@ -331,7 +397,7 @@ export default async function InternetActivityPage({
         <EmptyState
           icon={Globe2}
           title="No DNS activity available"
-          description="Confirm that AdGuard Home is connected and that this device sends DNS requests through it. A network scan alone cannot reveal browsing metadata."
+          description={diagnostics.message}
         />
       )}
     </div>

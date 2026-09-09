@@ -31,7 +31,16 @@ class ActivityBucket:
 @router.get("/status", response_model=NetworkStatusResponse)
 async def network_status(session: SessionDependency) -> NetworkStatusResponse:
     source = active_source()
-    devices = list((await session.scalars(select(Device).where(Device.source == source))).all())
+    devices = list(
+        (
+            await session.scalars(
+                select(Device).where(
+                    Device.source == source,
+                    Device.network_cidr == settings.netwatch_subnet,
+                )
+            )
+        ).all()
+    )
     online = [
         device for device in devices if device.status in {DeviceStatus.ONLINE, DeviceStatus.NEW}
     ]
@@ -39,7 +48,11 @@ async def network_status(session: SessionDependency) -> NetworkStatusResponse:
     gateway = next((device.ip_address for device in devices if device.is_gateway), None)
     last_scan = await session.scalar(
         select(Scan)
-        .where(Scan.source == source, Scan.status == ScanStatus.COMPLETED)
+        .where(
+            Scan.source == source,
+            Scan.subnet == settings.netwatch_subnet,
+            Scan.status == ScanStatus.COMPLETED,
+        )
         .order_by(Scan.finished_at.desc())
         .limit(1)
     )
@@ -72,14 +85,24 @@ async def network_activity(
         await session.execute(
             select(DeviceMetric, Device.id)
             .join(Device)
-            .where(Device.source == active_source(), DeviceMetric.timestamp >= since)
+            .where(
+                Device.source == active_source(),
+                Device.network_cidr == settings.netwatch_subnet,
+                DeviceMetric.timestamp >= since,
+            )
             .order_by(DeviceMetric.timestamp)
         )
     ).all()
     event_rows = list(
         (
             await session.scalars(
-                select(Event).where(Event.source == active_source(), Event.timestamp >= since)
+                select(Event)
+                .join(Device, Device.id == Event.device_id)
+                .where(
+                    Event.source == active_source(),
+                    Device.network_cidr == settings.netwatch_subnet,
+                    Event.timestamp >= since,
+                )
             )
         ).all()
     )

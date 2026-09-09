@@ -53,7 +53,10 @@ async def list_scans(
     page: Annotated[int, Query(ge=1)] = 1,
     per_page: Annotated[int, Query(ge=1, le=100)] = 25,
 ) -> ScanListResponse:
-    filters = [Scan.source == active_source()]
+    filters = [
+        Scan.source == active_source(),
+        Scan.subnet == settings.netwatch_subnet,
+    ]
     items = list(
         (
             await session.scalars(
@@ -78,7 +81,11 @@ async def list_scans(
 @router.get("/{scan_id}", response_model=ScanResponse)
 async def get_scan(scan_id: int, session: SessionDependency) -> ScanResponse:
     scan = await session.scalar(
-        select(Scan).where(Scan.id == scan_id, Scan.source == active_source())
+        select(Scan).where(
+            Scan.id == scan_id,
+            Scan.source == active_source(),
+            Scan.subnet == settings.netwatch_subnet,
+        )
     )
     if scan is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scan not found.")

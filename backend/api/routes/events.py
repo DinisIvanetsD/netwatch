@@ -3,10 +3,11 @@ from math import ceil
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.routes.devices import active_source
+from core.config import settings
 from database.session import get_session
 from models.device import Device
 from models.event import Event, EventSeverity, EventType
@@ -27,7 +28,10 @@ async def list_events(
     from_time: datetime | None = None,
     to_time: datetime | None = None,
 ) -> EventListResponse:
-    filters = [Event.source == active_source()]
+    filters = [
+        Event.source == active_source(),
+        or_(Event.device_id.is_(None), Device.network_cidr == settings.netwatch_subnet),
+    ]
     if device_id is not None:
         filters.append(Event.device_id == device_id)
     if event_type is not None:
@@ -50,7 +54,15 @@ async def list_events(
         )
     ).all()
     total = int(
-        (await session.scalar(select(func.count()).select_from(Event).where(*filters))) or 0
+        (
+            await session.scalar(
+                select(func.count())
+                .select_from(Event)
+                .outerjoin(Device, Event.device_id == Device.id)
+                .where(*filters)
+            )
+        )
+        or 0
     )
     items = [
         EventResponse(

@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.routes.devices import active_source
+from core.config import settings
 from database.repositories.device import DeviceRepository
 from database.session import get_session
 from models.device import Device
@@ -37,7 +38,14 @@ async def list_services(
     session: SessionDependency,
     active_only: Annotated[bool, Query()] = True,
 ) -> ServiceListResponse:
-    query = select(Service, Device).join(Device).where(Device.source == active_source())
+    query = (
+        select(Service, Device)
+        .join(Device)
+        .where(
+            Device.source == active_source(),
+            Device.network_cidr == settings.netwatch_subnet,
+        )
+    )
     if active_only:
         query = query.where(Service.active.is_(True))
     rows = (await session.execute(query.order_by(Service.service_name, Device.name))).all()
@@ -47,7 +55,11 @@ async def list_services(
 
 @router.get("/device/{device_id}", response_model=ServiceListResponse)
 async def list_device_services(device_id: int, session: SessionDependency) -> ServiceListResponse:
-    device = await DeviceRepository(session).get(device_id, source=active_source())
+    device = await DeviceRepository(session).get(
+        device_id,
+        source=active_source(),
+        network_cidr=settings.netwatch_subnet,
+    )
     if device is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found.")
     services = list(

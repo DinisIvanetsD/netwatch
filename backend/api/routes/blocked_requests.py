@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.dependencies import active_source
+from core.config import settings
 from database.session import get_session
 from models.control import ControlProfile, DomainRule
 from models.device import Device
@@ -66,6 +67,7 @@ async def list_blocked_requests(
     effective_profile = func.coalesce(InternetActivity.profile_id, Device.profile_id)
     filters = [
         Device.source == active_source(),
+        Device.network_cidr == settings.netwatch_subnet,
         InternetActivity.blocked.is_(True),
         InternetActivity.timestamp >= datetime.now(UTC) - timedelta(hours=hours),
     ]

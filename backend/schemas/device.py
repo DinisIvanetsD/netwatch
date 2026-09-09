@@ -26,6 +26,7 @@ class DeviceResponse(BaseModel):
     id: int
     name: str | None
     ip_address: str
+    network_cidr: str
     mac_address: str | None
     hostname: str | None
     vendor: str | None

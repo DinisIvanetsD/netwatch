@@ -23,7 +23,14 @@ class Device(Base):
     __tablename__ = "devices"
     __table_args__ = (
         Index("ix_devices_source_status", "source", "status"),
-        Index("ix_devices_source_ip", "source", "ip_address", unique=True),
+        Index(
+            "ix_devices_source_network_ip",
+            "source",
+            "network_cidr",
+            "ip_address",
+            unique=True,
+        ),
+        Index("ix_devices_source_network_status", "source", "network_cidr", "status"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -43,6 +50,7 @@ class Device(Base):
         default=DeviceSource.LIVE,
         nullable=False,
     )
+    network_cidr: Mapped[str] = mapped_column(String(50), nullable=False)
     latency_ms: Mapped[float | None]
     first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

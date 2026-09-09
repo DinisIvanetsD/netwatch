@@ -2,10 +2,11 @@ from math import ceil
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.dependencies import active_source
+from core.config import settings
 from database.repositories.device import DeviceRepository
 from database.session import get_session
 from models.control import AccessAudit, ControlProfile
@@ -34,7 +35,11 @@ SessionDependency = Annotated[AsyncSession, Depends(get_session)]
 
 
 async def _device(session: AsyncSession, device_id: int) -> Device:
-    device = await DeviceRepository(session).get(device_id, source=active_source())
+    device = await DeviceRepository(session).get(
+        device_id,
+        source=active_source(),
+        network_cidr=settings.netwatch_subnet,
+    )
     if device is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found.")
     return device
@@ -50,7 +55,10 @@ async def access_overview(session: SessionDependency) -> AccessOverviewResponse:
         (
             await session.scalars(
                 select(Device)
-                .where(Device.source == active_source())
+                .where(
+                    Device.source == active_source(),
+                    Device.network_cidr == settings.netwatch_subnet,
+                )
                 .order_by(Device.last_seen.desc())
             )
         ).all()
@@ -84,7 +92,13 @@ async def list_access_audit(
     page: Annotated[int, Query(ge=1)] = 1,
     per_page: Annotated[int, Query(ge=1, le=200)] = 50,
 ) -> AccessAuditListResponse:
-    filters = [AccessAudit.source == active_source()]
+    filters = [
+        AccessAudit.source == active_source(),
+        or_(
+            AccessAudit.device_id.is_(None),
+            Device.network_cidr == settings.netwatch_subnet,
+        ),
+    ]
     if device_id is not None:
         filters.append(AccessAudit.device_id == device_id)
     rows = (
@@ -101,7 +115,15 @@ async def list_access_audit(
         )
     ).all()
     total = int(
-        (await session.scalar(select(func.count()).select_from(AccessAudit).where(*filters))) or 0
+        (
+            await session.scalar(
+                select(func.count())
+                .select_from(AccessAudit)
+                .outerjoin(Device, Device.id == AccessAudit.device_id)
+                .where(*filters)
+            )
+        )
+        or 0
     )
     return AccessAuditListResponse(
         items=[
@@ -145,6 +167,16 @@ async def update_device_identity(
         )
         if profile is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Profile not found.")
+    if values.get("is_gateway") is True:
+        await session.execute(
+            update(Device)
+            .where(
+                Device.source == active_source(),
+                Device.network_cidr == settings.netwatch_subnet,
+                Device.id != device.id,
+            )
+            .values(is_gateway=False)
+        )
     for key, value in values.items():
         setattr(device, key, value)
     await session.flush()

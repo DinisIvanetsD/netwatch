@@ -42,3 +42,8 @@ def test_production_rejects_wildcard_allowed_hosts() -> None:
     configured = Settings(netwatch_env="production", allowed_hosts="*")
     with pytest.raises(ValueError, match="cannot contain"):
         _ = configured.allowed_host_list
+
+
+def test_rejects_invalid_adguard_dns_port() -> None:
+    with pytest.raises(ValidationError, match="ADGUARD_DNS_PORT"):
+        Settings(adguard_dns_port=70_000)
