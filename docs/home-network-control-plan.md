@@ -1,13 +1,13 @@
 # Home Network Control integration plan
 
-NetWatch currently provides live device discovery, TCP service observations, latency history,
-events, alerts, scheduled scans, and WebSocket refreshes. It does not currently ingest DNS
-queries or traffic-flow metadata and it has no router/firewall control integration.
+NetWatch provides live device discovery, TCP service observations, latency history, events,
+alerts, scheduled scans, WebSocket refreshes, and Technitium DNS query metadata. It does not
+decrypt HTTPS traffic and it has no router/firewall control integration yet.
 
 ## Integration boundaries
 
-- DNS visibility and filtering are supplied only by a configured `DNSControlProvider` such as
-  AdGuard Home or Pi-hole.
+- DNS visibility and filtering are supplied only by a configured `DNSControlProvider`. The
+  shipped provider is Technitium DNS Server with Query Logs and Advanced Blocking.
 - Device network controls are supplied only by a configured `NetworkControlProvider` such as
   OpenWrt, OPNsense, or UniFi.
 - The built-in generic provider is read-only. Unsupported actions remain disabled and return a
@@ -18,7 +18,7 @@ queries or traffic-flow metadata and it has no router/firewall control integrati
 ## Delivery sequence
 
 1. Add typed provider contracts, capability reporting, and safe unsupported-operation errors.
-2. Add encrypted integration configuration and an AdGuard Home provider using its documented API.
+2. Add encrypted integration configuration and a Technitium provider using its documented API.
 3. Normalize and classify observed domains in one backend service.
 4. Persist per-device Internet activity and expose paginated aggregate APIs.
 5. Add profiles, assignments, categories, domain rules, schedules, access state, blocked requests,

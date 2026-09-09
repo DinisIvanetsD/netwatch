@@ -1,7 +1,11 @@
 from dataclasses import dataclass
 from enum import StrEnum
 
-from services.providers.dns import AdGuardHomeProvider, DNSControlProvider, UnconfiguredDNSProvider
+from services.providers.dns import (
+    DNSControlProvider,
+    TechnitiumDNSProvider,
+    UnconfiguredDNSProvider,
+)
 from services.providers.network import GenericReadOnlyProvider, NetworkControlProvider
 
 
@@ -24,8 +28,20 @@ class ProviderRegistry:
         self.dns: DNSControlProvider = UnconfiguredDNSProvider()
         self.network: NetworkControlProvider = GenericReadOnlyProvider()
 
-    def configure_adguard(self, server_url: str, username: str, password: str) -> None:
-        self.dns = AdGuardHomeProvider(server_url, username, password)
+    def configure_technitium(
+        self,
+        server_url: str,
+        username: str,
+        password: str,
+        *,
+        network_cidr: str,
+    ) -> None:
+        self.dns = TechnitiumDNSProvider(
+            server_url,
+            username,
+            password,
+            network_cidr=network_cidr,
+        )
 
     def clear_dns(self) -> None:
         self.dns = UnconfiguredDNSProvider()

@@ -14,7 +14,7 @@ flowchart LR
     Control --> DNSProvider[DNSControlProvider]
     Control --> NetworkProvider[NetworkControlProvider]
     DNSActivity --> DNSProvider
-    DNSProvider --> AdGuard[AdGuard Home]
+    DNSProvider --> Technitium[Technitium DNS Server]
     NetworkProvider --> Fallback[Generic monitoring-only provider]
     API <--> DB[(SQLite / PostgreSQL)]
     Monitor <--> DB
@@ -36,4 +36,4 @@ The scanner only accepts the configured private subnet. Platform discovery imple
 
 DNS activity is accepted only from a configured provider and is associated with an inventory device by local client IP. Unmatched provider clients are not attributed to a person or device. Domain classification is an inference and never represents decrypted page content or exact usage time.
 
-Control operations follow capability checks before changing application state. AdGuard Home can enforce supported DNS rules and global Safe Search. The default network provider is deliberately read-only: pause, block, and quarantine actions stay disabled until a legitimate router/firewall adapter confirms that capability. Provider credentials are encrypted at rest and omitted from API responses.
+Control operations follow capability checks before changing application state. Technitium can enforce managed global and per-client DNS policy groups and supply query history. The default network provider is deliberately read-only: pause, block, and quarantine actions stay disabled until a legitimate router/firewall adapter confirms that capability. Provider credentials are encrypted at rest and omitted from API responses.

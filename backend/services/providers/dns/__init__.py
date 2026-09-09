@@ -1,4 +1,3 @@
-from services.providers.dns.adguard import AdGuardHomeProvider, AdGuardProviderError
 from services.providers.dns.base import (
     DNSCapability,
     DNSControlProvider,
@@ -7,6 +6,8 @@ from services.providers.dns.base import (
     SafeSearchSettings,
     UnconfiguredDNSProvider,
 )
+from services.providers.dns.technitium import TechnitiumDNSProvider, TechnitiumProviderError
+from services.providers.dns.validation import normalize_domain
 
 __all__ = [
     "DNSCapability",
@@ -15,6 +16,7 @@ __all__ = [
     "DomainRuleRequest",
     "SafeSearchSettings",
     "UnconfiguredDNSProvider",
-    "AdGuardHomeProvider",
-    "AdGuardProviderError",
+    "TechnitiumDNSProvider",
+    "TechnitiumProviderError",
+    "normalize_domain",
 ]

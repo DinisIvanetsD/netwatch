@@ -6,28 +6,29 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.dependencies import active_source
+from core.config import settings
 from core.credentials import CredentialConfigurationError
 from database.session import get_session
 from models.integration import Integration
 from schemas.integration import (
-    AdGuardConfigurationRequest,
-    AdGuardTestRequest,
     IntegrationResponse,
     ProviderCapabilityListResponse,
     ProviderCapabilityResponse,
     SafeSearchConfiguration,
+    TechnitiumConfigurationRequest,
+    TechnitiumTestRequest,
 )
 from services.control.rules import reconcile_all_rules
 from services.integrations import (
-    activate_adguard,
-    get_adguard_integration,
-    save_adguard_integration,
+    activate_technitium,
+    get_technitium_integration,
+    save_technitium_integration,
 )
 from services.providers.common import CapabilityUnavailableError, ProviderHealth, ProviderStatus
 from services.providers.dns import (
-    AdGuardHomeProvider,
     DNSCapability,
     SafeSearchSettings,
+    TechnitiumDNSProvider,
 )
 from services.providers.network import NetworkCapability
 from services.providers.registry import ProviderKind, provider_registry
@@ -46,6 +47,7 @@ def _integration_response(integration: Integration, health: ProviderHealth) -> I
         enabled=integration.enabled,
         server_url=str(configuration["server_url"]),
         username=str(configuration["username"]),
+        dns_port=int(configuration.get("dns_port", 53)),
         password_set=bool(integration.encrypted_credentials),
         status=health.status,
         message=health.message,
@@ -84,30 +86,36 @@ async def provider_capabilities() -> ProviderCapabilityListResponse:
     )
 
 
-@router.get("/adguard", response_model=IntegrationResponse)
-async def get_adguard(session: SessionDependency) -> IntegrationResponse:
-    integration = await get_adguard_integration(session)
+@router.get("/technitium", response_model=IntegrationResponse)
+async def get_technitium(session: SessionDependency) -> IntegrationResponse:
+    integration = await get_technitium_integration(session)
     if integration is None:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="AdGuard Home is not configured."
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Technitium DNS Server is not configured.",
         )
-    health = await activate_adguard(integration)
+    health = await activate_technitium(integration)
     return _integration_response(integration, health)
 
 
-@router.post("/adguard/test", response_model=ProviderCapabilityResponse)
-async def test_adguard(
-    payload: AdGuardTestRequest, session: SessionDependency
+@router.post("/technitium/test", response_model=ProviderCapabilityResponse)
+async def test_technitium(
+    payload: TechnitiumTestRequest, session: SessionDependency
 ) -> ProviderCapabilityResponse:
     if payload.password:
-        provider = AdGuardHomeProvider(payload.server_url, payload.username, payload.password)
+        provider = TechnitiumDNSProvider(
+            payload.server_url,
+            payload.username,
+            payload.password,
+            network_cidr=settings.netwatch_subnet,
+        )
         health = await provider.test_connection()
     else:
-        integration = await get_adguard_integration(session)
+        integration = await get_technitium_integration(session)
         if integration is None or not integration.encrypted_credentials:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="A password is required before testing this AdGuard Home connection.",
+                detail="A password is required before testing this Technitium connection.",
             )
         configuration = integration.configuration
         if (
@@ -118,7 +126,7 @@ async def test_adguard(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Enter the password to test changed connection details.",
             )
-        health = await activate_adguard(integration)
+        health = await activate_technitium(integration)
         provider = provider_registry.dns
     return ProviderCapabilityResponse(
         provider_id=provider.provider_id,
@@ -134,16 +142,17 @@ async def test_adguard(
     )
 
 
-@router.put("/adguard", response_model=IntegrationResponse)
-async def configure_adguard(
-    payload: AdGuardConfigurationRequest, session: SessionDependency
+@router.put("/technitium", response_model=IntegrationResponse)
+async def configure_technitium(
+    payload: TechnitiumConfigurationRequest, session: SessionDependency
 ) -> IntegrationResponse:
     try:
-        integration, health = await save_adguard_integration(
+        integration, health = await save_technitium_integration(
             session,
             server_url=payload.server_url,
             username=payload.username,
             password=payload.password,
+            dns_port=payload.dns_port,
             enabled=payload.enabled,
         )
     except CredentialConfigurationError as error:
@@ -156,9 +165,9 @@ async def configure_adguard(
     return _integration_response(integration, health)
 
 
-@router.delete("/adguard", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_adguard(session: SessionDependency) -> Response:
-    integration = await get_adguard_integration(session)
+@router.delete("/technitium", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_technitium(session: SessionDependency) -> Response:
+    integration = await get_technitium_integration(session)
     if integration is not None:
         await session.delete(integration)
         await session.commit()

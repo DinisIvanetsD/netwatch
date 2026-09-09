@@ -1,16 +1,25 @@
 name: netwatch
 
 services:
-  adguardhome:
-    image: adguard/adguardhome:v0.107.79
+  technitium:
+    image: technitium/dns-server:15.4.0
+    hostname: dns.netwatch.lan
     ports:
-      - "${ADGUARD_DNS_PORT:-53}:53/tcp"
-      - "${ADGUARD_DNS_PORT:-53}:53/udp"
-      - "8080:80/tcp"
-      - "3001:3000/tcp"
+      - "${TECHNITIUM_DNS_PORT:-5453}:53/tcp"
+      - "${TECHNITIUM_DNS_PORT:-5453}:53/udp"
+      - "${TECHNITIUM_WEB_PORT:-5380}:5380/tcp"
+    environment:
+      DNS_SERVER_DOMAIN: dns.netwatch.lan
+      DNS_SERVER_ADMIN_PASSWORD: ${TECHNITIUM_PASSWORD:?TECHNITIUM_PASSWORD must be set in .env}
     volumes:
-      - adguard-work:/opt/adguardhome/work
-      - adguard-conf:/opt/adguardhome/conf
+      - technitium-config:/etc/dns
+      - technitium-logs:/var/log/technitium/dns
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/5380"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
     restart: unless-stopped
 
   backend:
@@ -39,11 +48,17 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
       NETWATCH_SECRET_KEY: ${NETWATCH_SECRET_KEY:-}
-      ADGUARD_DNS_PORT: ${ADGUARD_DNS_PORT:-53}
+      TECHNITIUM_SERVER_URL: ${TECHNITIUM_SERVER_URL:-http://technitium:5380}
+      TECHNITIUM_USERNAME: ${TECHNITIUM_USERNAME:-admin}
+      TECHNITIUM_PASSWORD: ${TECHNITIUM_PASSWORD:?TECHNITIUM_PASSWORD must be set in .env}
+      TECHNITIUM_DNS_PORT: ${TECHNITIUM_DNS_PORT:-5453}
     ports:
       - "8000:8000"
     volumes:
       - netwatch-data:/app/data
+    depends_on:
+      technitium:
+        condition: service_healthy
     healthcheck:
       test:
         [
@@ -84,5 +99,5 @@ services:
 
 volumes:
   netwatch-data:
-  adguard-work:
-  adguard-conf:
+  technitium-config:
+  technitium-logs:

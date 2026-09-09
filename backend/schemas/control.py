@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from schemas.device import DeviceResponse
 from services.control.constants import CONTENT_CATEGORIES
-from services.providers.dns.adguard import normalize_domain
+from services.providers.dns import normalize_domain
 
 
 class RuleScope(StrEnum):

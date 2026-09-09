@@ -665,7 +665,7 @@ async def test_blocked_request_log_explains_profile_rule(
                 record_key="blocked-request-test",
                 device_id=device.id,
                 profile_id=profile.id,
-                provider_id="adguard_home",
+                provider_id="technitium_dns",
                 timestamp=now,
                 source_ip=device.ip_address,
                 domain="sub.blocked.example",
@@ -676,7 +676,7 @@ async def test_blocked_request_log_explains_profile_rule(
                 query_type="A",
                 response_status="NOERROR",
                 blocked=True,
-                reason="FilteredBlackList",
+                reason="Blocked",
             )
         )
         await session.commit()

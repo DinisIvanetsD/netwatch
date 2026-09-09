@@ -63,7 +63,7 @@ const navigation = [
         icon: ShieldCheck,
       },
       { href: "/access-control", label: "Access Control", icon: CircleDot },
-      { href: "/blocked", label: "Blocked Requests", icon: Ban },
+      { href: "/blocked", label: "Website Blocking", icon: Ban },
     ],
   },
   {
@@ -83,7 +83,7 @@ const pageNames: Record<string, string> = {
   "/history": "History",
   "/parental-controls": "Parental Controls",
   "/access-control": "Access Control",
-  "/blocked": "Blocked Requests",
+  "/blocked": "Website Blocking",
   "/settings": "Settings",
 };
 

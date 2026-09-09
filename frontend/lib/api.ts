@@ -12,11 +12,11 @@ import type {
 } from "@/types/internet-activity";
 import type { Alert, AlertListResponse } from "@/types/alert";
 import type {
-  AdGuardConfigurationInput,
-  AdGuardIntegration,
   ProviderCapabilityList,
   ProviderStatus,
   SafeSearchConfiguration,
+  TechnitiumConfigurationInput,
+  TechnitiumIntegration,
 } from "@/types/integration";
 import type {
   AccessAuditList,
@@ -219,26 +219,26 @@ export async function getNetworkActivity(hours = 24): Promise<NetworkActivity> {
   return request<NetworkActivity>(`/api/network/activity?hours=${hours}`);
 }
 
-export async function getAdGuardConfiguration(): Promise<AdGuardIntegration | null> {
+export async function getTechnitiumConfiguration(): Promise<TechnitiumIntegration | null> {
   try {
-    return await request<AdGuardIntegration>("/api/integrations/adguard");
+    return await request<TechnitiumIntegration>("/api/integrations/technitium");
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) return null;
     throw error;
   }
 }
 
-export async function configureAdGuard(
-  payload: AdGuardConfigurationInput,
-): Promise<AdGuardIntegration> {
-  return request<AdGuardIntegration>("/api/integrations/adguard", {
+export async function configureTechnitium(
+  payload: TechnitiumConfigurationInput,
+): Promise<TechnitiumIntegration> {
+  return request<TechnitiumIntegration>("/api/integrations/technitium", {
     method: "PUT",
     headers: jsonHeaders,
     body: JSON.stringify(payload),
   });
 }
 
-export async function testAdGuard(payload: {
+export async function testTechnitium(payload: {
   server_url: string;
   username: string;
   password?: string;
@@ -247,7 +247,7 @@ export async function testAdGuard(payload: {
   message: string;
   version: string | null;
 }> {
-  return request("/api/integrations/adguard/test", {
+  return request("/api/integrations/technitium/test", {
     method: "POST",
     headers: jsonHeaders,
     body: JSON.stringify(payload),

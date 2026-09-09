@@ -119,10 +119,10 @@ export default async function InternetActivityPage({
           </p>
           <p className="text-muted-foreground mt-1 text-xs leading-5">
             NetWatch can report that a device contacted domains such as
-            google.com, youtube.com, or roblox.com when its DNS uses AdGuard
-            Home. HTTPS keeps search words, exact videos, messages, passwords,
-            and page contents encrypted, so NetWatch does not display or claim
-            to know them.
+            google.com, youtube.com, or roblox.com when its DNS uses the
+            configured Technitium server. HTTPS keeps search words, exact
+            videos, messages, passwords, and page contents encrypted, so
+            NetWatch does not display or claim to know them.
           </p>
         </div>
       </div>

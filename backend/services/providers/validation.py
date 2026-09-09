@@ -32,7 +32,7 @@ def normalize_local_provider_url(value: str) -> str:
     except ValueError:
         if "." in host and not host.endswith((".local", ".lan", ".home", ".internal")):
             raise ProviderURLValidationError(
-                "Provider hostname must be local (for example adguard.local)"
+                "Provider hostname must be local (for example dns.netwatch.lan)"
             ) from None
     else:
         if not (address.is_private or address.is_loopback or address.is_link_local):

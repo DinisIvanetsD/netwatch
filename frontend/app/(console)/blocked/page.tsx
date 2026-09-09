@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Ban, Search } from "lucide-react";
 
 import { EmptyState } from "@/components/empty-state";
+import { GlobalRulesManager } from "@/components/control/global-rules-manager";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,6 +20,7 @@ import {
   getAllDevices,
   getBlockedRequests,
   getControlProfiles,
+  getDomainRules,
 } from "@/lib/api";
 import {
   deviceDisplayName,
@@ -26,7 +28,7 @@ import {
   formatRelativeTime,
 } from "@/lib/format";
 
-export const metadata = { title: "Blocked Requests" };
+export const metadata = { title: "Website Blocking" };
 export const dynamic = "force-dynamic";
 
 interface BlockedSearchParams {
@@ -65,7 +67,7 @@ export default async function BlockedRequestsPage({
   const profileId = positiveInteger(params.profile);
   const hours = positiveInteger(params.hours) ?? 24 * 7;
   const page = positiveInteger(params.page) ?? 1;
-  const [blocked, devices, profiles] = await Promise.all([
+  const [blocked, devices, profiles, domainRules] = await Promise.all([
     getBlockedRequests({
       deviceId,
       profileId,
@@ -77,20 +79,29 @@ export default async function BlockedRequestsPage({
     }),
     getAllDevices({ sortBy: "name", sortOrder: "asc" }),
     getControlProfiles(),
+    getDomainRules(),
   ]);
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">
-          Blocked Requests
+          Website Blocking
         </h1>
         <p className="text-muted-foreground mt-1 max-w-3xl text-sm">
-          DNS requests reported as blocked by the configured provider. NetWatch
-          stores the domain and policy metadata, never page contents or
-          passwords.
+          Apply real DNS rules and review requests blocked by the configured
+          provider. NetWatch stores domain and policy metadata, never page
+          contents or passwords.
         </p>
       </div>
+
+      <Card>
+        <CardContent className="pt-5">
+          <GlobalRulesManager
+            rules={domainRules.filter((rule) => rule.scope_type === "global")}
+          />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

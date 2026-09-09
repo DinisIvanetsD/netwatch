@@ -2,16 +2,16 @@ import { ServiceSettingsForm } from "@/components/settings/service-settings-form
 import { AlertSettingsForm } from "@/components/settings/alert-settings-form";
 import { DataSettingsForm } from "@/components/settings/data-settings-form";
 import { ScannerSettingsForm } from "@/components/settings/scanner-settings-form";
-import { AdGuardSettingsForm } from "@/components/settings/adguard-settings-form";
+import { TechnitiumSettingsForm } from "@/components/settings/technitium-settings-form";
 import { AccessPolicyForm } from "@/components/settings/access-policy-form";
 import { ProviderCapabilityMatrix } from "@/components/settings/provider-capability-matrix";
 import { SafeSearchSettingsForm } from "@/components/settings/safe-search-settings-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  getAdGuardConfiguration,
   getProviderCapabilities,
   getSafeSearch,
   getSettings,
+  getTechnitiumConfiguration,
 } from "@/lib/api";
 
 export const metadata = { title: "Settings" };
@@ -19,9 +19,9 @@ export const metadata = { title: "Settings" };
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const [settings, adGuard, providers] = await Promise.all([
+  const [settings, technitium, providers] = await Promise.all([
     getSettings(),
-    getAdGuardConfiguration(),
+    getTechnitiumConfiguration(),
     getProviderCapabilities(),
   ]);
   const dnsProvider = providers.items.find(
@@ -89,10 +89,10 @@ export default async function SettingsPage() {
         </Card>
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>AdGuard Home integration</CardTitle>
+            <CardTitle>Technitium DNS Server</CardTitle>
           </CardHeader>
           <CardContent>
-            <AdGuardSettingsForm initial={adGuard} />
+            <TechnitiumSettingsForm initial={technitium} />
           </CardContent>
         </Card>
         <Card>

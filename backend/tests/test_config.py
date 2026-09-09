@@ -44,6 +44,6 @@ def test_production_rejects_wildcard_allowed_hosts() -> None:
         _ = configured.allowed_host_list
 
 
-def test_rejects_invalid_adguard_dns_port() -> None:
-    with pytest.raises(ValidationError, match="ADGUARD_DNS_PORT"):
-        Settings(adguard_dns_port=70_000)
+def test_rejects_invalid_technitium_dns_port() -> None:
+    with pytest.raises(ValidationError, match="TECHNITIUM_DNS_PORT"):
+        Settings(technitium_dns_port=70_000)

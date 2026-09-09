@@ -18,6 +18,7 @@ from schemas.internet_activity import (
     InternetActivityResponse,
     InternetActivitySummaryResponse,
 )
+from services.integrations import get_technitium_integration
 from services.providers.dns import DNSCapability
 from services.providers.registry import provider_registry
 
@@ -26,16 +27,16 @@ SessionDependency = Annotated[AsyncSession, Depends(get_session)]
 logger = logging.getLogger(__name__)
 
 
-def _diagnostic_steps() -> list[str]:
+def _diagnostic_steps(dns_port: int) -> list[str]:
     steps = [
-        "Run AdGuard Home on a device that current network clients can reach.",
-        "Configure the router or each device to use that AdGuard Home address as DNS.",
+        "Run Technitium DNS Server on a device that current network clients can reach.",
+        "Configure the router or each device to use that Technitium address as DNS.",
         "Open a website, then refresh Internet Activity or run another NetWatch scan.",
     ]
-    if settings.adguard_dns_port != 53:
+    if dns_port != 53:
         steps.insert(
             1,
-            "Move AdGuard DNS to standard port 53; most routers and phones cannot use "
+            "Move Technitium DNS to standard port 53; most routers and phones cannot use "
             "a custom DNS port.",
         )
     return steps
@@ -47,17 +48,23 @@ async def internet_activity_diagnostics(
 ) -> InternetActivityDiagnosticsResponse:
     provider = provider_registry.dns
     health = await provider.test_connection()
+    integration = await get_technitium_integration(session)
+    dns_port = (
+        int(integration.configuration.get("dns_port", settings.technitium_dns_port))
+        if integration is not None
+        else settings.technitium_dns_port
+    )
     base = {
         "provider_id": provider.provider_id,
         "provider_name": provider.display_name,
         "provider_status": health.status.value,
         "network_cidr": settings.netwatch_subnet,
-        "dns_port": settings.adguard_dns_port,
+        "dns_port": dns_port,
         "records_checked": 0,
         "matched_records": 0,
         "matched_devices": 0,
         "unmatched_clients": [],
-        "steps": _diagnostic_steps(),
+        "steps": _diagnostic_steps(dns_port),
     }
     if not provider.supports(DNSCapability.QUERY_HISTORY):
         return InternetActivityDiagnosticsResponse(
@@ -109,20 +116,20 @@ async def internet_activity_diagnostics(
         return InternetActivityDiagnosticsResponse(
             **result,
             status="no_queries",
-            message="AdGuard Home is connected, but its query log has no DNS requests yet.",
+            message="Technitium is connected, but its query log has no DNS requests yet.",
         )
     if not matched:
         port_note = (
-            f" The configured DNS listener uses port {settings.adguard_dns_port}, "
+            f" The configured DNS listener uses port {dns_port}, "
             "not standard port 53."
-            if settings.adguard_dns_port != 53
+            if dns_port != 53
             else ""
         )
         return InternetActivityDiagnosticsResponse(
             **result,
             status="unmatched_clients",
             message=(
-                "AdGuard Home has queries, but none came from devices discovered on "
+                "Technitium has queries, but none came from devices discovered on "
                 "the current network." + port_note
             ),
         )

@@ -128,5 +128,5 @@ class UnconfiguredDNSProvider(DNSControlProvider):
     async def test_connection(self) -> ProviderHealth:
         return ProviderHealth(
             ProviderStatus.NOT_CONFIGURED,
-            "Configure AdGuard Home or Pi-hole to enable DNS activity and filtering.",
+            "Configure Technitium DNS Server to enable DNS activity and filtering.",
         )

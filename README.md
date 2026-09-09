@@ -19,7 +19,7 @@ NetWatch is an open-source, self-hosted network monitoring dashboard for discove
 - Historical activity charts, device metrics, event filters, and LAN mapping
 - Runtime-editable network, scanner, alert, service, and retention settings
 - Capability-aware provider architecture that never invents unsupported controls
-- AdGuard Home integration for real DNS query metadata, statistics, Safe Search, and managed domain rules
+- Technitium DNS Server integration with query logging, statistics, managed website rules, and client policy groups
 - Per-device Internet activity with inferred services, DNS-derived categories, and blocked-request explanations
 - Administrator-managed device names, owners, types, trust states, and household profile assignments
 - Parental profiles with schedules, category preferences, and permanent or temporary website rules
@@ -47,7 +47,7 @@ flowchart LR
     Services --> Scanner[Authorized TCP checks]
     Services --> Alerts[Alert rules]
     Services --> Providers[DNS / router providers]
-    Providers --> AdGuard[AdGuard Home]
+    Providers --> Technitium[Technitium DNS Server]
     API <--> DB[(SQLite / PostgreSQL)]
     Services <--> DB
 ```
@@ -105,11 +105,11 @@ docker compose up --build
 
 The normal bridge-network configuration is suitable for the dashboard and API. Low-level ARP/ICMP discovery may require host networking or additional capabilities on Linux and behaves differently under Docker Desktop on macOS and Windows. NetWatch will expose those limitations rather than inventing results.
 
-Compose also starts the pinned AdGuard Home integration. Its administration interface is
-available at `http://localhost:8080`; first-run setup uses `http://localhost:3001`. DNS is
-published on standard host port `53` by default and can be changed with `ADGUARD_DNS_PORT` when
-the host already reserves that port. Network-wide DNS normally requires port `53` or a router
-that supports a custom DNS port.
+Compose also starts the pinned Technitium DNS Server integration. Its administration interface
+is available at `http://localhost:5380`. NetWatch automatically provisions Technitium's Query
+Logs and Advanced Blocking apps and stores its own managed policy groups separately. The example
+configuration publishes DNS on port `5453` for conflict-free local testing. Network-wide DNS
+normally requires `TECHNITIUM_DNS_PORT=53` and a router that advertises the NetWatch host as DNS.
 
 ## Configuration
 
@@ -136,7 +136,11 @@ that supports a custom DNS port.
 | `CORS_ORIGINS` | `http://localhost:3000` | Comma-separated browser origins |
 | `ALLOWED_HOSTS` | `localhost,127.0.0.1` | Accepted HTTP hostnames in production |
 | `NETWATCH_SECRET_KEY` | none | Fernet key required to encrypt provider passwords at rest |
-| `ADGUARD_DNS_PORT` | `53` | Host port published for the included AdGuard DNS server |
+| `TECHNITIUM_SERVER_URL` | `http://technitium:5380` | Local Technitium API root used by the backend |
+| `TECHNITIUM_USERNAME` | `admin` | Technitium administrator/API username |
+| `TECHNITIUM_PASSWORD` | none | Required strong password for the bundled DNS server |
+| `TECHNITIUM_DNS_PORT` | `5453` | Host port published for the included DNS listener; use `53` for clients |
+| `TECHNITIUM_WEB_PORT` | `5380` | Host port for the Technitium web console |
 | `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Browser-visible API base URL |
 | `NEXT_PUBLIC_WS_URL` | `ws://localhost:8000/ws` | Browser-visible WebSocket endpoint |
 | `NETWATCH_INTERNAL_API_URL` | `http://backend:8000` in Compose | Backend URL used by server-rendered frontend pages |
@@ -149,11 +153,11 @@ Generate `NETWATCH_SECRET_KEY` before saving an integration:
 python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ```
 
-AdGuard Home is configured from **Settings → AdGuard Home integration**. Enter the local server root URL (for example `http://192.168.1.2:3000`), not a `/control` path. NetWatch accepts only local/private provider destinations.
+Technitium is configured from **Settings → Technitium DNS Server**. Enter the local server root URL (for example `http://192.168.1.2:5380`), not an `/api` path. NetWatch accepts only local/private provider destinations.
 
 ## Internet Activity
 
-The Internet Activity page associates AdGuard Home DNS records with inventory devices by local IP address. It displays the device name, contacted domain, inferred service, category, provider result, and whether the request was blocked. A device appears only when it uses the configured AdGuard Home instance for DNS.
+The Internet Activity page associates Technitium DNS records with inventory devices by local IP address. It displays the device name, contacted domain, inferred service, category, provider result, and whether the request was blocked. A device appears only when it uses the configured Technitium instance for DNS and the deployment preserves the original client IP.
 
 DNS records are observations, not exact usage time. Seeing `youtube.com` means the device requested that domain; it does not prove which page or video was viewed.
 
@@ -161,15 +165,15 @@ DNS records are observations, not exact usage time. Seeing `youtube.com` means t
 
 Open **Control → Parental Controls** to create profiles, assign devices, save allowed Internet windows, choose category-policy preferences, and add custom allow or block rules. Rule precedence is designed around explicit scope: device-specific rules are more specific than profile rules, which are more specific than global rules. Temporary rules expire automatically.
 
-Custom domain rules are sent to AdGuard Home only after the provider confirms the required capability. A profile or device rule with no assigned client remains visibly pending. Category selections remain policy preferences when the configured DNS provider does not expose per-profile category filtering; the capability matrix shows this honestly.
+Custom domain rules are sent to Technitium Advanced Blocking only after the provider confirms the required capability. A profile or device rule with no assigned client remains visibly pending. Category selections remain policy preferences until a maintained category list is explicitly mapped; the capability matrix shows this honestly.
 
 ## Website Blocking
 
-Website rules accept normalized domain names such as `example.com`; arbitrary URLs, paths, commands, and public scan targets are rejected. Subdomain blocking uses provider-supported DNS syntax. Allow rules always include subdomains because exact-only allow exceptions are not reliably representable by the current AdGuard Home rule adapter.
+Open **Control → Website Blocking** to add, verify, retry, and remove network-wide rules. Website rules accept normalized domain names such as `example.com`; arbitrary URLs, paths, commands, and public scan targets are rejected. Subdomain blocking uses Technitium policy groups. Allow rules always include subdomains to keep precedence predictable.
 
 ## Category Filtering
 
-NetWatch stores maintainable category policy identifiers and reports provider-derived categories in activity logs. It does not embed large third-party blocklists in the application. The current AdGuard Home adapter reports per-profile category filtering as unavailable because global subscription lists cannot honestly be presented as client-specific policy. Use custom per-profile domain rules or provider-managed global filter lists until a compatible category-list provider is added.
+NetWatch stores maintainable category policy identifiers and reports DNS-derived categories in activity logs. It does not silently subscribe users to third-party blocklists. The Technitium adapter supports managed filter lists, but category checkboxes remain policy preferences until the administrator chooses reviewed lists for each category. Custom network/profile rules are enforced immediately.
 
 ## Device Access Control
 
@@ -181,18 +185,18 @@ Every attempted control action is written to the audit log with its actor, provi
 
 New devices begin as unknown and can generate an alert. The conservative default is **Allow + Alert**. Automatic quarantine or blocking can be selected in Settings, but it is applied only when the configured network provider safely supports the required API. Unsupported automatic actions leave the device unchanged and record a failure instead of simulating success.
 
-## AdGuard Home Setup
+## Technitium DNS Setup
 
-1. Start the included service with `docker compose up -d` and finish AdGuard Home setup at `http://localhost:8080`.
-2. In NetWatch, open **Settings → AdGuard Home integration** and save the local server URL, username, and password.
-3. Use **Test connection**, then review the provider capability matrix.
-4. Configure household clients or the router to use AdGuard Home as DNS. Merely scanning the LAN does not route DNS through AdGuard Home.
+1. Generate `NETWATCH_SECRET_KEY` and a strong `TECHNITIUM_PASSWORD` in `.env`.
+2. Start the stack with `docker compose up -d --build`; the integration and required DNS apps are prepared automatically.
+3. Open `http://localhost:5380` for the Technitium console or **Settings → Technitium DNS Server** for connection status.
+4. For network-wide use, publish DNS on port `53` and configure the router DHCP/DNS setting to advertise the NetWatch host address. Merely scanning the LAN does not route DNS through NetWatch.
 
-If Windows Internet Connection Sharing or another resolver already owns port `53`, set `ADGUARD_DNS_PORT=5453` locally before starting Compose. Most routers accept only standard DNS port `53`; in that case, network-wide activity requires AdGuard Home on a host where port `53` is available or a router that supports a custom DNS port.
+If Windows Internet Connection Sharing or another resolver owns port `53`, keep `TECHNITIUM_DNS_PORT=5453` for local testing. Most routers accept only standard DNS port `53`; network-wide activity then requires Technitium on a host where port `53` is available, a dedicated NetWatch gateway, or a router that supports a custom DNS port.
 
 ## Safe Search
 
-The Settings page reads and writes AdGuard Home's supported global Safe Search configuration. It is provider-wide and applies only to clients using that DNS server. Profile Safe Search is retained as an administrator policy preference and is never labelled as per-profile enforcement when the provider supports only global settings.
+Profile Safe Search is retained as an administrator policy preference. The current Technitium adapter does not advertise automatic Safe Search rewriting, so the control remains visibly unavailable instead of claiming enforcement that has not been verified.
 
 ## Pi-hole Setup
 
@@ -238,7 +242,7 @@ NetWatch does not currently provide multi-user authentication. Keep it on a trus
 
 ARP tables, ICMP permissions, hostname resolution, and interface access vary by host OS and container runtime. Discovery will use replaceable platform adapters and report unsupported capabilities explicitly. A flat LAN does not reveal physical switch topology, so NetWatch will only render a gateway-centered discovered-device map unless stronger evidence is available.
 
-Internet Activity currently represents DNS request metadata supplied by AdGuard Home. It does not inspect packet contents, prove that a website was opened, or measure upload/download bytes. Devices that bypass the configured DNS provider will not appear in this view.
+Internet Activity currently represents DNS request metadata supplied by Technitium. It does not inspect packet contents, prove that a website was opened, or measure upload/download bytes. Devices that bypass the configured DNS provider will not appear in this view. Docker Desktop may translate client addresses; use a gateway/native deployment when per-device attribution is required.
 
 ## Roadmap
 

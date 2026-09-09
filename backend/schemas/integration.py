@@ -20,10 +20,11 @@ class ProviderCapabilityListResponse(BaseModel):
     items: list[ProviderCapabilityResponse]
 
 
-class AdGuardConfigurationRequest(BaseModel):
+class TechnitiumConfigurationRequest(BaseModel):
     server_url: str
     username: str = Field(min_length=1, max_length=100)
     password: str | None = Field(default=None, min_length=1, max_length=500)
+    dns_port: int = Field(default=53, ge=1, le=65_535)
     enabled: bool = True
 
     @field_validator("server_url")
@@ -32,7 +33,7 @@ class AdGuardConfigurationRequest(BaseModel):
         return normalize_local_provider_url(value)
 
 
-class AdGuardTestRequest(BaseModel):
+class TechnitiumTestRequest(BaseModel):
     server_url: str
     username: str = Field(min_length=1, max_length=100)
     password: str | None = Field(default=None, min_length=1, max_length=500)
@@ -50,6 +51,7 @@ class IntegrationResponse(BaseModel):
     enabled: bool
     server_url: str
     username: str
+    dns_port: int
     password_set: bool
     status: ProviderStatus
     message: str
