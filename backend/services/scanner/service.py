@@ -201,9 +201,7 @@ class ScanService:
                 ).all()
             )
             devices = [
-                device
-                for device in devices
-                if device.network_cidr == settings.netwatch_subnet
+                device for device in devices if device.network_cidr == settings.netwatch_subnet
             ]
             count = len(devices)
             now = datetime.now(UTC)

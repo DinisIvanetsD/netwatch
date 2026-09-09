@@ -259,9 +259,7 @@ async def delete_profile(profile_id: int, session: SessionDependency) -> Respons
         .where(InternetActivity.profile_id == profile.id)
         .values(profile_id=None)
     )
-    await session.execute(
-        delete(AccessSchedule).where(AccessSchedule.profile_id == profile.id)
-    )
+    await session.execute(delete(AccessSchedule).where(AccessSchedule.profile_id == profile.id))
     await session.delete(profile)
     await session.commit()
     await connection_manager.broadcast("profile.deleted", {"profile_id": profile_id})

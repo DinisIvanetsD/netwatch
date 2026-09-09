@@ -191,9 +191,7 @@ async def seed_demo_history() -> None:
                 )
             ).all()
         )
-        devices = [
-            device for device in devices if device.network_cidr == settings.netwatch_subnet
-        ]
+        devices = [device for device in devices if device.network_cidr == settings.netwatch_subnet]
         if not devices:
             return
 
@@ -278,9 +276,7 @@ async def seed_demo_services() -> None:
                 )
             ).all()
         )
-        devices = [
-            device for device in devices if device.network_cidr == settings.netwatch_subnet
-        ]
+        devices = [device for device in devices if device.network_cidr == settings.netwatch_subnet]
         now = datetime.now(UTC)
         assignments = {
             0: (53, 80, 443),

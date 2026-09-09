@@ -123,8 +123,7 @@ async def internet_activity_diagnostics(
             status="unmatched_clients",
             message=(
                 "AdGuard Home has queries, but none came from devices discovered on "
-                "the current network."
-                + port_note
+                "the current network." + port_note
             ),
         )
     return InternetActivityDiagnosticsResponse(
