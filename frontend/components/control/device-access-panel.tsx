@@ -107,9 +107,11 @@ export function DeviceAccessPanel({
       ? "block_internet"
       : "unblock_internet";
   const quarantineCapability =
-    device.trust_state === "quarantined"
+    device.trust_state === "quarantined" || device.trust_state === "blocked"
       ? "release_device"
       : "quarantine_device";
+  const needsRelease =
+    device.trust_state === "quarantined" || device.trust_state === "blocked";
 
   return (
     <div className="space-y-4">
@@ -274,14 +276,16 @@ export function DeviceAccessPanel({
             ) : null}
             <ConfirmControl
               title={
-                device.trust_state === "quarantined"
-                  ? `Release ${deviceDisplayName(device)}?`
+                needsRelease
+                  ? `${device.trust_state === "blocked" ? "Release block for" : "Release"} ${deviceDisplayName(device)}?`
                   : `Quarantine ${deviceDisplayName(device)}?`
               }
-              description="NetWatch will request full Internet and LAN isolation through a compatible router or firewall and update the state only after confirmation."
-              label={
-                device.trust_state === "quarantined" ? "Release" : "Quarantine"
+              description={
+                needsRelease
+                  ? "NetWatch will ask the configured router or firewall to remove its managed rule and update the device state only after confirmation."
+                  : "NetWatch will request full Internet and LAN isolation through a compatible router or firewall and update the state only after confirmation."
               }
+              label={needsRelease ? "Release" : "Quarantine"}
               icon={WifiOff}
               disabled={
                 working !== null ||
@@ -290,9 +294,7 @@ export function DeviceAccessPanel({
               }
               onConfirm={() =>
                 act(
-                  device.trust_state === "quarantined"
-                    ? "release"
-                    : "quarantine",
+                  needsRelease ? "release" : "quarantine",
                 )
               }
             />

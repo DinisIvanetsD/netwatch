@@ -206,7 +206,7 @@ NetWatch stores maintainable category policy identifiers and reports DNS-derived
 
 ## Device Access Control
 
-Open **Control → Access Control** or the **Access** tab on a device. Renaming, ownership, device type, profile assignment, trust, and ignore actions work in NetWatch itself. When Technitium is connected, NetWatch offers per-device DNS containment only after recent query-log evidence confirms that the device is actually using it. Pause and Block Internet then install a catch-all DNS rule, while full LAN quarantine, disconnect, and persistent firewall blocking remain disabled until a router/firewall provider confirms those capabilities.
+Open **Control → Access Control** or the **Access** tab on a device. Renaming, ownership, device type, profile assignment, trust, and ignore actions work in NetWatch itself. When Technitium is connected, NetWatch offers per-device DNS containment only after recent query-log evidence confirms that the device is actually using it. For provider-backed control, configure OpenWrt or OPNsense in **Settings → Router integration**. The interface enables only the capabilities the provider confirms; NOS/Hitron stays manual when no supported API is available.
 
 Every attempted control action is written to the audit log with its actor, provider, result, timestamp, and message. A failed provider request never changes the displayed device state.
 
@@ -234,7 +234,15 @@ The DNS provider interface is ready for additional adapters, but a Pi-hole adapt
 
 ## Router Integration
 
-The network-control interface defines capability checks for client inventory, status, Internet blocking, release, quarantine, disconnect, bandwidth metrics, and firewall rules. Technitium supplies a deliberately limited DNS-containment fallback; it never advertises LAN quarantine or firewall control. The detected NOS/CHITA web interface has a manual Device Filter but no verified public automation API, so NetWatch does not scrape its login or simulate success. OpenWrt and OPNsense are the recommended targets for authenticated automatic firewall control.
+The network-control interface defines capability checks for client inventory, status, Internet blocking, release, quarantine, disconnect, bandwidth metrics, and firewall rules. Technitium supplies a deliberately limited DNS-containment fallback; it never advertises LAN quarantine or firewall control. OpenWrt uses authenticated ubus and stable MAC identity. OPNsense uses authenticated REST rules and the current private IP owner because standard pf rules do not support MAC matching. The detected NOS/CHITA web interface has a manual Device Filter but no verified public automation API, so NetWatch does not scrape its login or simulate success.
+
+## Windows desktop app
+
+The optional Electron desktop shell is in `desktop/`. It keeps the host sensor, backend, and
+Next standalone frontend on loopback, supervises their health, opens the dashboard, and stores a
+generated encryption key in the per-user NetWatch data directory. Build a Windows installer with
+`npm install` followed by `npm run dist` inside `desktop/`; the build bundles the backend,
+migrations, frontend runtime, and detected Python environment without copying `.env` secrets.
 
 ## HTTPS, Encrypted DNS, and VPN Limitations
 

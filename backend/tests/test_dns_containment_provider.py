@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -9,13 +9,19 @@ from models.device import Device, DeviceSource, DeviceStatus
 from services.control.actions import (
     NetworkControlActionError,
     _identifier,
+    _protected_target_reason,
     _require_current_ip_owner,
+    perform_network_action,
     reconcile_network_control_identifier,
     reconcile_network_control_identifiers,
 )
 from services.providers.dns import DNSCapability, DNSQueryRecord, TechnitiumDNSProvider
 from services.providers.dns.technitium import TechnitiumProviderError
-from services.providers.network import DNSContainmentNetworkProvider, NetworkCapability
+from services.providers.network import (
+    DNSContainmentNetworkProvider,
+    GenericReadOnlyProvider,
+    NetworkCapability,
+)
 from services.providers.registry import ProviderRegistry, provider_registry
 
 
@@ -81,6 +87,68 @@ async def test_ip_controls_reject_offline_historical_devices() -> None:
         await _require_current_ip_owner(
             AsyncMock(), device, provider, "block_internet"
         )
+
+
+@pytest.mark.asyncio
+async def test_ip_control_can_release_offline_device_without_releasing_reused_ip() -> None:
+    provider = DNSContainmentNetworkProvider(AsyncMock())
+    now = datetime.now(UTC)
+    device = Device(
+        id=93,
+        ip_address="192.168.1.25",
+        status=DeviceStatus.OFFLINE,
+        source=DeviceSource.LIVE,
+        network_cidr="192.168.1.0/24",
+        network_id="legacy",
+        control_provider_id=provider.provider_id,
+        control_identifier="192.168.1.25",
+        first_seen=now,
+        last_seen=now,
+        is_gateway=False,
+    )
+    result = SimpleNamespace(all=lambda: [device])
+    session = SimpleNamespace(scalars=AsyncMock(return_value=result))
+
+    await _require_current_ip_owner(session, device, provider, "release")
+
+
+def test_network_control_refuses_to_block_gateway() -> None:
+    device = Device(
+        id=94,
+        ip_address="192.168.1.1",
+        status=DeviceStatus.ONLINE,
+        source=DeviceSource.LIVE,
+        network_cidr="192.168.1.0/24",
+        network_id="legacy",
+        first_seen=datetime.now(UTC),
+        last_seen=datetime.now(UTC),
+        is_gateway=True,
+    )
+    assert "gateway" in (_protected_target_reason(device) or "").lower()
+
+
+@pytest.mark.asyncio
+async def test_network_action_records_and_rejects_protected_gateway() -> None:
+    previous = provider_registry.network
+    provider_registry.network = GenericReadOnlyProvider()
+    try:
+        device = Device(
+            id=95,
+            ip_address="192.168.1.1",
+            status=DeviceStatus.ONLINE,
+            source=DeviceSource.LIVE,
+            network_cidr="192.168.1.0/24",
+            network_id="legacy",
+            first_seen=datetime.now(UTC),
+            last_seen=datetime.now(UTC),
+            is_gateway=True,
+        )
+        session = SimpleNamespace(add=Mock())
+        with pytest.raises(NetworkControlActionError, match="gateway"):
+            await perform_network_action(session, device, "block_internet")
+        session.add.assert_called_once()
+    finally:
+        provider_registry.network = previous
 
 
 @pytest.mark.asyncio

@@ -3,12 +3,14 @@ import { AlertSettingsForm } from "@/components/settings/alert-settings-form";
 import { DataSettingsForm } from "@/components/settings/data-settings-form";
 import { ScannerSettingsForm } from "@/components/settings/scanner-settings-form";
 import { TechnitiumSettingsForm } from "@/components/settings/technitium-settings-form";
+import { RouterSettingsForm } from "@/components/settings/router-settings-form";
 import { AccessPolicyForm } from "@/components/settings/access-policy-form";
 import { ProviderCapabilityMatrix } from "@/components/settings/provider-capability-matrix";
 import { SafeSearchSettingsForm } from "@/components/settings/safe-search-settings-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   getProviderCapabilities,
+  getRouterIntegration,
   getSafeSearch,
   getSettings,
   getTechnitiumConfiguration,
@@ -19,9 +21,10 @@ export const metadata = { title: "Settings" };
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const [settings, technitium, providers] = await Promise.all([
+  const [settings, technitium, router, providers] = await Promise.all([
     getSettings(),
     getTechnitiumConfiguration(),
+    getRouterIntegration(),
     getProviderCapabilities(),
   ]);
   const dnsProvider = providers.items.find(
@@ -45,6 +48,14 @@ export default async function SettingsPage() {
         </p>
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Router integration</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RouterSettingsForm initial={router} capability={networkProvider} />
+          </CardContent>
+        </Card>
         <Card className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Network and scanner</CardTitle>

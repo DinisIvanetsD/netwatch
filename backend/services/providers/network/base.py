@@ -38,6 +38,19 @@ class NetworkControlProvider(ABC):
     capabilities: frozenset[NetworkCapability]
     identifier_kind = "mac_or_ip"
 
+    @staticmethod
+    def validate_identifier(identifier: str) -> str:
+        value = identifier.strip().upper().replace("-", ":")
+        parts = value.split(":")
+        if len(parts) == 6 and all(len(part) == 2 for part in parts):
+            try:
+                int(value.replace(":", ""), 16)
+            except ValueError:
+                pass
+            else:
+                return value
+        raise ValueError("Router control requires a valid current MAC address")
+
     def supports(self, capability: NetworkCapability) -> bool:
         return capability in self.capabilities
 

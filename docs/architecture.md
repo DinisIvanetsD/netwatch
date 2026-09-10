@@ -15,6 +15,8 @@ flowchart LR
     Control --> NetworkProvider[NetworkControlProvider]
     DNSActivity --> DNSProvider
     DNSProvider --> Technitium[Technitium DNS Server]
+    NetworkProvider --> OpenWrt[OpenWrt ubus]
+    NetworkProvider --> OPNsense[OPNsense API]
     NetworkProvider --> DNSFallback[Technitium DNS-only containment]
     NetworkProvider --> Fallback[Generic monitoring-only provider]
     API <--> DB[(SQLite / PostgreSQL)]
@@ -23,6 +25,8 @@ flowchart LR
     Monitor --> Realtime[WebSocket manager]
     Control --> Realtime
     Realtime --> Browser
+    Desktop[Windows Electron shell] --> Sensor[Loopback host sensor]
+    Desktop --> Browser
 ```
 
 ## Boundaries
@@ -44,4 +48,12 @@ DHCP changes its IP.
 
 DNS activity is accepted only from a configured provider and is associated with an inventory device by local client IP. Unmatched provider clients are not attributed to a person or device. Domain classification is an inference and never represents decrypted page content or exact usage time.
 
-Control operations follow capability checks before changing application state. Technitium can enforce managed global and per-client DNS policy groups, provide query history, and apply an all-domain DNS containment group only after recent per-client evidence. That fallback advertises Internet block/release only and explicitly remains bypassable by direct IP, encrypted DNS, or VPN. LAN quarantine and firewall controls stay disabled until a legitimate router/firewall adapter confirms them. Provider credentials are encrypted at rest and omitted from API responses.
+Control operations follow capability checks before changing application state. OpenWrt and OPNsense
+use authenticated, provider-managed rules and only update local state after the router confirms the
+operation. OPNsense rules use current private IP ownership because standard pf rules do not match
+Ethernet MAC addresses. Technitium can enforce managed global and per-client DNS policy groups,
+provide query history, and apply an all-domain DNS containment group only after recent per-client
+evidence. That fallback advertises Internet block/release only and explicitly remains bypassable by
+direct IP, encrypted DNS, or VPN. LAN quarantine and firewall controls stay disabled until a
+legitimate router/firewall adapter confirms them. Provider credentials are encrypted at rest and
+omitted from API responses.

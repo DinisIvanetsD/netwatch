@@ -10,6 +10,8 @@ from services.providers.network import (
     DNSContainmentNetworkProvider,
     GenericReadOnlyProvider,
     NetworkControlProvider,
+    OpenWrtProvider,
+    OPNsenseProvider,
 )
 
 
@@ -57,6 +59,12 @@ class ProviderRegistry:
 
     def configure_network(self, provider: NetworkControlProvider) -> None:
         self.network = provider
+
+    def configure_openwrt(self, server_url: str, username: str, password: str) -> None:
+        self.network = OpenWrtProvider(server_url, username, password)
+
+    def configure_opnsense(self, server_url: str, api_key: str, api_secret: str) -> None:
+        self.network = OPNsenseProvider(server_url, api_key, api_secret)
 
     def clear_network(self) -> None:
         if self.dns.provider_id == "technitium_dns":

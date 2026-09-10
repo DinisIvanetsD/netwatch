@@ -665,7 +665,8 @@ async def test_unsupported_router_action_is_audited_without_changing_device(
 
         quarantine = device_client.post(f"/api/devices/{live_device.id}/quarantine")
         assert quarantine.status_code == 409
-        assert "unavailable" in quarantine.json()["detail"].lower()
+        detail = quarantine.json()["detail"].lower()
+        assert "unavailable" in detail or "gateway" in detail
 
         async with device_session_factory() as session:
             stored = await session.get(Device, live_device.id)

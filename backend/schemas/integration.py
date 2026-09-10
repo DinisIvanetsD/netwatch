@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator
 
 from services.providers.common import ProviderStatus
@@ -42,6 +44,34 @@ class TechnitiumTestRequest(BaseModel):
     @classmethod
     def validate_server_url(cls, value: str) -> str:
         return normalize_local_provider_url(value)
+
+
+class RouterConfigurationRequest(BaseModel):
+    provider_id: Literal["openwrt", "opnsense", "generic", "nos", "hitron"]
+    server_url: str = "http://192.168.1.1"
+    username: str | None = Field(default=None, max_length=100)
+    password: str | None = Field(default=None, max_length=500)
+    api_key: str | None = Field(default=None, max_length=500)
+    api_secret: str | None = Field(default=None, max_length=500)
+    enabled: bool = True
+    confirm_state_changes: bool = False
+
+    @field_validator("server_url")
+    @classmethod
+    def validate_server_url(cls, value: str) -> str:
+        return normalize_local_provider_url(value)
+
+
+class RouterIntegrationResponse(BaseModel):
+    provider_id: str
+    display_name: str
+    kind: ProviderKind
+    enabled: bool
+    server_url: str
+    credential_set: bool
+    status: ProviderStatus
+    message: str
+    version: str | None = None
 
 
 class IntegrationResponse(BaseModel):

@@ -9,6 +9,8 @@ from services.providers.network.dns_containment import (
     TechnitiumDNSContainmentProvider,
 )
 from services.providers.network.generic import GenericReadOnlyProvider
+from services.providers.network.openwrt import OpenWrtProvider
+from services.providers.network.opnsense import OPNsenseProvider
 
 __all__ = [
     "GenericReadOnlyProvider",
@@ -18,4 +20,6 @@ __all__ = [
     "NetworkControlResult",
     "DNSContainmentNetworkProvider",
     "TechnitiumDNSContainmentProvider",
+    "OpenWrtProvider",
+    "OPNsenseProvider",
 ]

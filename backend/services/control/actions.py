@@ -1,6 +1,8 @@
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from ipaddress import ip_address
+from urllib.parse import urlsplit
 
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,6 +31,37 @@ class NetworkControlActionError(RuntimeError):
     pass
 
 
+def _current_network_environment() -> object | None:
+    """Read the last verified host-sensor environment without creating an import cycle."""
+
+    try:
+        from services.scanner.service import scan_service
+    except (ImportError, AttributeError):
+        return None
+    return scan_service.last_environment
+
+
+def _protected_target_reason(device: Device) -> str | None:
+    if device.is_gateway:
+        return "NetWatch will not block the device marked as the network gateway."
+    try:
+        router_url = provider_registry.network.server_url  # type: ignore[attr-defined]
+        router_host = urlsplit(str(router_url)).hostname
+        router_address = ip_address(router_host) if router_host else None
+    except (AttributeError, ValueError):
+        router_address = None
+    if router_address is not None and device.ip_address == str(router_address):
+        return "NetWatch will not block the configured router address."
+    environment = _current_network_environment()
+    if environment is None:
+        return None
+    if device.ip_address == environment.local_ip:
+        return "NetWatch will not block the Windows host running the scanner."
+    if environment.gateway and device.ip_address == environment.gateway:
+        return "NetWatch will not block the verified network gateway."
+    return None
+
+
 async def _require_current_ip_owner(
     session: AsyncSession,
     device: Device,
@@ -42,7 +75,40 @@ async def _require_current_ip_owner(
         "block_internet",
         "quarantine",
         "block_device",
+        "release",
     }:
+        return
+    if action == "release":
+        if (
+            device.source != DeviceSource.LIVE
+            or device.network_cidr != settings.netwatch_subnet
+            or device.network_id != settings.netwatch_network_id
+        ):
+            raise NetworkControlActionError(
+                "This device is not part of the current monitored network. "
+                "Run a scan before releasing an IP-based control."
+            )
+        if not device.control_identifier:
+            raise NetworkControlActionError(
+                "This device has no managed IP control that NetWatch can release."
+            )
+        owners = list(
+            (
+                await session.scalars(
+                    select(Device).where(
+                        Device.source == DeviceSource.LIVE,
+                        Device.network_cidr == settings.netwatch_subnet,
+                        Device.network_id == settings.netwatch_network_id,
+                        Device.ip_address == device.control_identifier,
+                        Device.status != DeviceStatus.OFFLINE,
+                    )
+                )
+            ).all()
+        )
+        if any(owner.id != device.id for owner in owners):
+            raise NetworkControlActionError(
+                "NetWatch will not release an IP rule that now belongs to another device."
+            )
         return
     if (
         device.source != DeviceSource.LIVE
@@ -151,9 +217,28 @@ async def perform_network_action(
     actor: str = "administrator",
 ) -> ControlResult:
     provider = provider_registry.network
+    if action in {"pause_internet", "block_internet", "quarantine", "block_device"}:
+        protected_reason = _protected_target_reason(device)
+        if protected_reason:
+            session.add(
+                _audit(
+                    device,
+                    action=action,
+                    actor=actor,
+                    result="failed",
+                    message=protected_reason,
+                )
+            )
+            raise NetworkControlActionError(protected_reason)
     now = datetime.now(UTC)
     expires_at = now + timedelta(minutes=duration_minutes) if duration_minutes is not None else None
     await _require_current_ip_owner(session, device, provider, action)
+    if action == "release" and (
+        device.control_provider_id != provider.provider_id or not device.control_identifier
+    ):
+        message = "This device has no managed router rule that NetWatch can release."
+        session.add(_audit(device, action=action, actor=actor, result="failed", message=message))
+        raise NetworkControlActionError(message)
     current_identifier = _identifier(device, provider)
     applied_to_current_identifier = (
         device.control_provider_id == provider.provider_id
@@ -170,7 +255,8 @@ async def perform_network_action(
         and applied_to_current_identifier,
         "quarantine": device.trust_state == "quarantined"
         and applied_to_current_identifier,
-        "release": device.trust_state != "quarantined",
+        "release": device.trust_state not in {"quarantined", "blocked"}
+        and device.internet_access == "allowed",
         "block_device": device.trust_state == "blocked" and applied_to_current_identifier,
     }
     if idempotent_messages.get(action):

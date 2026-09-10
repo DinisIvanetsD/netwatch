@@ -15,6 +15,8 @@ import type {
   ProviderCapabilityList,
   ProviderStatus,
   SafeSearchConfiguration,
+  RouterConfigurationInput,
+  RouterIntegration,
   TechnitiumConfigurationInput,
   TechnitiumIntegration,
 } from "@/types/integration";
@@ -226,6 +228,29 @@ export async function getTechnitiumConfiguration(): Promise<TechnitiumIntegratio
     if (error instanceof ApiError && error.status === 404) return null;
     throw error;
   }
+}
+
+export async function getRouterIntegration(): Promise<RouterIntegration | null> {
+  try {
+    return await request<RouterIntegration>("/api/integrations/router");
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+export async function configureRouter(
+  payload: RouterConfigurationInput,
+): Promise<RouterIntegration> {
+  return request<RouterIntegration>("/api/integrations/router", {
+    method: "PUT",
+    headers: jsonHeaders,
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteRouterIntegration(): Promise<void> {
+  return request<void>("/api/integrations/router", { method: "DELETE" });
 }
 
 export async function configureTechnitium(

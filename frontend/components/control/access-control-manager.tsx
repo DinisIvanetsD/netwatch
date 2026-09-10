@@ -351,11 +351,13 @@ function DeviceAccessRow({
   const canQuarantine = Boolean(
     providerReady &&
     capabilities[
-      device.trust_state === "quarantined"
+      device.trust_state === "quarantined" || device.trust_state === "blocked"
         ? "release_device"
         : "quarantine_device"
     ],
   );
+  const needsRelease =
+    device.trust_state === "quarantined" || device.trust_state === "blocked";
   const canBlock = providerReady && Boolean(capabilities.firewall_rules);
 
   return (
@@ -446,23 +448,23 @@ function DeviceAccessRow({
           ) : null}
           <ConfirmAction
             title={
-              device.trust_state === "quarantined"
-                ? `Release ${deviceDisplayName(device)}?`
+              needsRelease
+                ? `${device.trust_state === "blocked" ? "Release block for" : "Release"} ${deviceDisplayName(device)}?`
                 : `Quarantine ${deviceDisplayName(device)}?`
             }
             description={
-              device.trust_state === "quarantined"
-                ? "The router will restore the access allowed by its release policy."
+              needsRelease
+                ? "The router or firewall will remove the managed rule after confirmation."
                 : "A compatible router or firewall will restrict Internet and LAN access. DNS-only containment cannot provide LAN quarantine."
             }
             actionLabel={
-              device.trust_state === "quarantined" ? "Release" : "Quarantine"
+              needsRelease ? "Release" : "Quarantine"
             }
             disabled={working !== null || !canQuarantine}
             disabledReason="Router integration required"
             onConfirm={() =>
               act(
-                device.trust_state === "quarantined" ? "release" : "quarantine",
+                needsRelease ? "release" : "quarantine",
               )
             }
           />

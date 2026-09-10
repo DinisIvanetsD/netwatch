@@ -28,6 +28,31 @@ export interface TechnitiumConfigurationInput {
   enabled: boolean;
 }
 
+export type RouterProviderId = "openwrt" | "opnsense" | "generic" | "nos" | "hitron";
+
+export interface RouterIntegration {
+  provider_id: RouterProviderId | string;
+  display_name: string;
+  kind: "network";
+  enabled: boolean;
+  server_url: string;
+  credential_set: boolean;
+  status: ProviderStatus;
+  message: string;
+  version: string | null;
+}
+
+export interface RouterConfigurationInput {
+  provider_id: RouterProviderId;
+  server_url: string;
+  username?: string;
+  password?: string;
+  api_key?: string;
+  api_secret?: string;
+  enabled: boolean;
+  confirm_state_changes: boolean;
+}
+
 export type ProviderKind = "dns" | "network";
 
 export interface ProviderCapability {

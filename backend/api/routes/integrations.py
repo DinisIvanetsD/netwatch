@@ -14,14 +14,19 @@ from schemas.integration import (
     IntegrationResponse,
     ProviderCapabilityListResponse,
     ProviderCapabilityResponse,
+    RouterConfigurationRequest,
+    RouterIntegrationResponse,
     SafeSearchConfiguration,
     TechnitiumConfigurationRequest,
     TechnitiumTestRequest,
 )
 from services.control.rules import reconcile_all_rules
 from services.integrations import (
+    activate_router,
     activate_technitium,
+    get_router_integration,
     get_technitium_integration,
+    save_router_integration,
     save_technitium_integration,
 )
 from services.providers.common import CapabilityUnavailableError, ProviderHealth, ProviderStatus
@@ -53,6 +58,49 @@ def _integration_response(integration: Integration, health: ProviderHealth) -> I
         message=health.message,
         version=health.version,
     )
+
+
+def _router_response(integration: Integration, health: ProviderHealth) -> RouterIntegrationResponse:
+    return RouterIntegrationResponse(
+        provider_id=integration.provider_id,
+        display_name=integration.display_name,
+        kind=ProviderKind.NETWORK,
+        enabled=integration.enabled,
+        server_url=str(integration.configuration.get("server_url", "")),
+        credential_set=bool(integration.encrypted_credentials),
+        status=health.status,
+        message=health.message,
+        version=health.version,
+    )
+
+
+@router.get("/router", response_model=RouterIntegrationResponse)
+async def get_router(session: SessionDependency) -> RouterIntegrationResponse:
+    integration = await get_router_integration(session)
+    if integration is None:
+        raise HTTPException(status_code=404, detail="Router integration is not configured.")
+    return _router_response(integration, await activate_router(integration))
+
+
+@router.put("/router", response_model=RouterIntegrationResponse)
+async def configure_router(
+    payload: RouterConfigurationRequest, session: SessionDependency
+) -> RouterIntegrationResponse:
+    try:
+        integration, health = await save_router_integration(session, **payload.model_dump())
+    except (CredentialConfigurationError, ValueError) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    return _router_response(integration, health)
+
+
+@router.delete("/router", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_router(session: SessionDependency) -> Response:
+    integration = await get_router_integration(session)
+    if integration is not None:
+        await session.delete(integration)
+        await session.commit()
+    provider_registry.clear_network()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/capabilities", response_model=ProviderCapabilityListResponse)
