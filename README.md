@@ -138,6 +138,32 @@ normally requires `TECHNITIUM_DNS_PORT=53` and a router that advertises the NetW
 
 ## Configuration
 
+### Making DNS activity and website blocking work
+
+NetWatch can only associate DNS activity with a device when that device sends
+DNS requests to the configured Technitium server. The Technitium web console
+address (normally `http://127.0.0.1:5380`) is not the address to enter as a
+client DNS server. In the router's LAN/DHCP settings, advertise the Windows
+PC's current LAN address instead, for example `192.168.1.37`, on DNS port 53.
+
+Then reconnect the clients, open a website, and refresh **Internet Activity**.
+The Settings page shows the current LAN address, gateway, DNS port, and a live
+readiness diagnosis. Reserve the PC address in the router DHCP lease so it does
+not change. If Windows Mobile Hotspot or Internet Connection Sharing owns UDP
+port 53, it must be disabled before Technitium can receive network-wide DNS;
+disabling it can interrupt that hotspot, so use a real router or supported
+firewall when the PC must remain the gateway.
+
+DNS activity is metadata: it can show contacted domains and blocked DNS
+requests, but HTTPS prevents NetWatch from seeing exact search words, messages,
+passwords, or page contents. DNS-only blocking can also be bypassed by direct
+IP traffic, encrypted DNS, or a VPN.
+
+Full device blocking or LAN quarantine requires a supported router/firewall
+provider such as OpenWrt, OPNsense, or pfSense. Hitron/NOS and mobile hotspots
+without a documented control API remain monitoring-only/manual; NetWatch keeps
+those actions disabled instead of claiming that a block succeeded.
+
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `NETWATCH_ENV` | `development` | Runtime profile |

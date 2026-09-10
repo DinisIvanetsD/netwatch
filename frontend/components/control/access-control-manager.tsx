@@ -457,16 +457,10 @@ function DeviceAccessRow({
                 ? "The router or firewall will remove the managed rule after confirmation."
                 : "A compatible router or firewall will restrict Internet and LAN access. DNS-only containment cannot provide LAN quarantine."
             }
-            actionLabel={
-              needsRelease ? "Release" : "Quarantine"
-            }
+            actionLabel={needsRelease ? "Release" : "Quarantine"}
             disabled={working !== null || !canQuarantine}
             disabledReason="Router integration required"
-            onConfirm={() =>
-              act(
-                needsRelease ? "release" : "quarantine",
-              )
-            }
+            onConfirm={() => act(needsRelease ? "release" : "quarantine")}
           />
           <ConfirmAction
             title={`Block ${deviceDisplayName(device)}?`}

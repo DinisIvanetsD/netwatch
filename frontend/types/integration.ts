@@ -28,7 +28,8 @@ export interface TechnitiumConfigurationInput {
   enabled: boolean;
 }
 
-export type RouterProviderId = "openwrt" | "opnsense" | "generic" | "nos" | "hitron";
+export type RouterProviderId =
+  "openwrt" | "opnsense" | "generic" | "nos" | "hitron";
 
 export interface RouterIntegration {
   provider_id: RouterProviderId | string;

@@ -146,6 +146,8 @@ describe("DeviceAccessPanel", () => {
     ).toBeEnabled();
     expect(screen.getByRole("button", { name: "Block via DNS" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Quarantine" })).toBeDisabled();
-    expect(screen.getByText(/direct IP, encrypted DNS, and VPN/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/direct IP, encrypted DNS, and VPN/i),
+    ).toBeInTheDocument();
   });
 });

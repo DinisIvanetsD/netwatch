@@ -14,7 +14,9 @@ vi.mock("@/lib/api", () => ({
   deleteRouterIntegration: mocks.deleteRouterIntegration,
 }));
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: mocks.refresh }) }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: mocks.refresh }),
+}));
 
 describe("RouterSettingsForm", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -33,24 +35,38 @@ describe("RouterSettingsForm", () => {
     });
     render(<RouterSettingsForm initial={null} />);
 
-    fireEvent.change(screen.getByLabelText("Router provider"), { target: { value: "openwrt" } });
-    expect(screen.getByLabelText("Password (leave blank to keep)")).toHaveValue("");
-    fireEvent.change(screen.getByLabelText("Username"), { target: { value: "root" } });
-    fireEvent.change(screen.getByLabelText("Password (leave blank to keep)"), { target: { value: "secret" } });
+    fireEvent.change(screen.getByLabelText("Router provider"), {
+      target: { value: "openwrt" },
+    });
+    expect(screen.getByLabelText("Password (leave blank to keep)")).toHaveValue(
+      "",
+    );
+    fireEvent.change(screen.getByLabelText("Username"), {
+      target: { value: "root" },
+    });
+    fireEvent.change(screen.getByLabelText("Password (leave blank to keep)"), {
+      target: { value: "secret" },
+    });
     fireEvent.click(screen.getAllByRole("checkbox")[0]);
     expect(mocks.configureRouter).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Save router integration" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Save router integration" }),
+    ).toBeDisabled();
 
     fireEvent.click(screen.getAllByRole("checkbox")[1]);
-    fireEvent.click(screen.getByRole("button", { name: "Save router integration" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save router integration" }),
+    );
 
-    await waitFor(() => expect(mocks.configureRouter).toHaveBeenCalledWith({
-      provider_id: "openwrt",
-      server_url: "http://192.168.1.1",
-      username: "root",
-      password: "secret",
-      enabled: true,
-      confirm_state_changes: true,
-    }));
+    await waitFor(() =>
+      expect(mocks.configureRouter).toHaveBeenCalledWith({
+        provider_id: "openwrt",
+        server_url: "http://192.168.1.1",
+        username: "root",
+        password: "secret",
+        enabled: true,
+        confirm_state_changes: true,
+      }),
+    );
   });
 });

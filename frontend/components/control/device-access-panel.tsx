@@ -292,11 +292,7 @@ export function DeviceAccessPanel({
                 networkUnavailable ||
                 !capabilities[quarantineCapability]
               }
-              onConfirm={() =>
-                act(
-                  needsRelease ? "release" : "quarantine",
-                )
-              }
+              onConfirm={() => act(needsRelease ? "release" : "quarantine")}
             />
             <ConfirmControl
               title={`Block ${deviceDisplayName(device)}?`}

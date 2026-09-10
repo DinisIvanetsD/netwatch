@@ -29,7 +29,7 @@ export default async function NetworkPage() {
   );
   const routerControlled = Boolean(
     networkProvider?.capabilities.quarantine_device ||
-      networkProvider?.capabilities.firewall_rules,
+    networkProvider?.capabilities.firewall_rules,
   );
   return (
     <div className="space-y-6">
@@ -44,20 +44,27 @@ export default async function NetworkPage() {
           <div>
             <p className="text-sm font-medium">Windows network sensor active</p>
             <p className="text-muted-foreground mt-1 text-xs">
-              NetWatch is reading the physical {network.interface_name ?? "network"}
-              {network.local_ip ? ` interface at ${network.local_ip}` : " interface"}.
+              NetWatch is reading the physical{" "}
+              {network.interface_name ?? "network"}
+              {network.local_ip
+                ? ` interface at ${network.local_ip}`
+                : " interface"}
+              .
             </p>
           </div>
           <p className="text-primary text-xs font-medium">
-            {network.auto_detect_network ? "Automatic network switching on" : "Manual subnet mode"}
+            {network.auto_detect_network
+              ? "Automatic network switching on"
+              : "Manual subnet mode"}
           </p>
         </div>
       ) : (
         <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 px-4 py-3">
           <p className="text-sm font-medium">Container-only discovery</p>
           <p className="text-muted-foreground mt-1 text-xs">
-            Start the optional Windows sensor for physical-interface MAC addresses,
-            gateway facts, and automatic switching when this PC changes network.
+            Start the optional Windows sensor for physical-interface MAC
+            addresses, gateway facts, and automatic switching when this PC
+            changes network.
           </p>
         </div>
       )}
