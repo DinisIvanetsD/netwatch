@@ -297,7 +297,7 @@ async def test_technitium_rejects_clients_outside_authorized_subnet() -> None:
         provider._validated_clients(("192.168.2.5",))
 
 
-def test_bundled_technitium_replaces_unsafe_example_configuration() -> None:
+def test_bundled_technitium_preserves_unmanaged_configuration() -> None:
     provider = TechnitiumDNSProvider(
         "http://technitium:5380",
         "admin",
@@ -320,9 +320,12 @@ def test_bundled_technitium_replaces_unsafe_example_configuration() -> None:
         },
     )
 
-    assert rendered["localEndPointGroupMap"] == {}
-    assert "everyone else" not in rendered["networkGroupMap"].values()
-    assert {group["name"] for group in rendered["groups"]} == {"netwatch-default"}
+    assert rendered["localEndPointGroupMap"] == {"127.0.0.1": "bypass"}
+    assert rendered["networkGroupMap"]["0.0.0.0/0"] == "everyone else"
+    assert {group["name"] for group in rendered["groups"]} == {
+        "everyone else",
+        "netwatch-default",
+    }
 
 
 def test_credentials_are_encrypted_and_invalid_keys_fail_closed() -> None:

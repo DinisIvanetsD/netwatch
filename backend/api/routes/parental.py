@@ -83,6 +83,7 @@ async def _profile_response(
                 .where(
                     Device.source == active_source(),
                     Device.network_cidr == settings.netwatch_subnet,
+                    Device.network_id == settings.netwatch_network_id,
                     Device.profile_id == profile.id,
                 )
                 .order_by(Device.id)
@@ -103,6 +104,7 @@ async def _profile_response(
                 .where(
                     Device.source == active_source(),
                     Device.network_cidr == settings.netwatch_subnet,
+                    Device.network_id == settings.netwatch_network_id,
                     InternetActivity.blocked.is_(True),
                     InternetActivity.timestamp >= start_of_day,
                     or_(*activity_scope),
@@ -280,6 +282,7 @@ async def assign_profile_devices(
                 select(Device).where(
                     Device.source == active_source(),
                     Device.network_cidr == settings.netwatch_subnet,
+                    Device.network_id == settings.netwatch_network_id,
                     or_(Device.profile_id == profile.id, Device.id.in_(requested)),
                 )
             )
@@ -358,6 +361,7 @@ async def create_domain_rule(
                 Device.id == payload.scope_id,
                 Device.source == active_source(),
                 Device.network_cidr == settings.netwatch_subnet,
+                Device.network_id == settings.netwatch_network_id,
             )
         )
         if device is None:

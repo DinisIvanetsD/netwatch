@@ -16,6 +16,7 @@ from models.metric import DeviceMetric
 from models.scan import Scan, ScanStatus
 from schemas.network import ActivityPoint, NetworkActivityResponse, NetworkStatusResponse
 from services.scanner.coordinator import scan_coordinator
+from services.scanner.service import scan_service
 
 router = APIRouter(prefix="/network", tags=["network"])
 SessionDependency = Annotated[AsyncSession, Depends(get_session)]
@@ -37,6 +38,7 @@ async def network_status(session: SessionDependency) -> NetworkStatusResponse:
                 select(Device).where(
                     Device.source == source,
                     Device.network_cidr == settings.netwatch_subnet,
+                    Device.network_id == settings.netwatch_network_id,
                 )
             )
         ).all()
@@ -45,12 +47,19 @@ async def network_status(session: SessionDependency) -> NetworkStatusResponse:
         device for device in devices if device.status in {DeviceStatus.ONLINE, DeviceStatus.NEW}
     ]
     latencies = [device.latency_ms for device in online if device.latency_ms is not None]
+    environment = scan_service.last_environment
+    if environment is not None and (
+        environment.subnet != settings.netwatch_subnet
+        or environment.network_id != settings.netwatch_network_id
+    ):
+        environment = None
     gateway = next((device.ip_address for device in devices if device.is_gateway), None)
     last_scan = await session.scalar(
         select(Scan)
         .where(
             Scan.source == source,
             Scan.subnet == settings.netwatch_subnet,
+            Scan.network_id == settings.netwatch_network_id,
             Scan.status == ScanStatus.COMPLETED,
         )
         .order_by(Scan.finished_at.desc())
@@ -64,8 +73,12 @@ async def network_status(session: SessionDependency) -> NetworkStatusResponse:
     )
     return NetworkStatusResponse(
         subnet=settings.netwatch_subnet,
-        gateway=gateway,
-        dns_servers=[],
+        gateway=gateway or (environment.gateway if environment else None),
+        dns_servers=list(environment.dns_servers) if environment else [],
+        interface_name=environment.interface_name if environment else None,
+        local_ip=environment.local_ip if environment else None,
+        discovery_mode="windows_sensor" if environment else "container",
+        auto_detect_network=settings.auto_detect_network,
         total_devices=len(devices),
         online_devices=len(online),
         average_latency_ms=sum(latencies) / len(latencies) if latencies else None,
@@ -88,6 +101,7 @@ async def network_activity(
             .where(
                 Device.source == active_source(),
                 Device.network_cidr == settings.netwatch_subnet,
+                Device.network_id == settings.netwatch_network_id,
                 DeviceMetric.timestamp >= since,
             )
             .order_by(DeviceMetric.timestamp)
@@ -101,6 +115,7 @@ async def network_activity(
                 .where(
                     Event.source == active_source(),
                     Device.network_cidr == settings.netwatch_subnet,
+                    Device.network_id == settings.netwatch_network_id,
                     Event.timestamp >= since,
                 )
             )

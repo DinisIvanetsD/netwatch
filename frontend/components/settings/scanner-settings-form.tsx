@@ -16,6 +16,9 @@ export function ScannerSettingsForm({
 }) {
   const router = useRouter();
   const [subnet, setSubnet] = useState(initial.subnet);
+  const [autoDetectNetwork, setAutoDetectNetwork] = useState(
+    initial.auto_detect_network,
+  );
   const [scanInterval, setScanInterval] = useState(initial.scan_interval);
   const [scanConcurrency, setScanConcurrency] = useState(
     initial.scan_concurrency,
@@ -51,12 +54,14 @@ export function ScannerSettingsForm({
     try {
       const updated = await updateSettings({
         subnet: subnet.trim(),
+        auto_detect_network: autoDetectNetwork,
         scan_interval: scanInterval,
         scan_concurrency: scanConcurrency,
         offline_after_missed_scans: offlineThreshold,
         monitoring_enabled: monitoringEnabled,
       });
       setSubnet(updated.subnet);
+      setAutoDetectNetwork(updated.auto_detect_network);
       setMessage("Network and scanner settings saved.");
       router.refresh();
     } catch (error) {
@@ -89,6 +94,24 @@ export function ScannerSettingsForm({
         />
       </label>
 
+      <label className="border-border flex items-center justify-between gap-4 rounded-lg border p-4">
+        <span>
+          <span className="block text-sm font-medium">
+            Follow the active Windows network
+          </span>
+          <span className="text-muted-foreground text-xs">
+            When the local host sensor is running, each scan safely switches to
+            the private subnet currently used by this PC.
+          </span>
+        </span>
+        <input
+          type="checkbox"
+          checked={autoDetectNetwork}
+          onChange={(event) => setAutoDetectNetwork(event.target.checked)}
+          className="accent-primary size-4"
+        />
+      </label>
+
       <div>
         <label htmlFor="monitored-subnet" className="text-sm font-medium">
           Monitored subnet
@@ -100,9 +123,12 @@ export function ScannerSettingsForm({
           className="mt-2 font-mono"
           spellCheck={false}
           placeholder="192.168.1.0/24"
+          disabled={autoDetectNetwork}
         />
         <p className="text-muted-foreground mt-2 text-xs">
-          RFC 1918 private IPv4 networks only, with a maximum size of /16.
+          {autoDetectNetwork
+            ? "Used as a safe fallback if the Windows sensor is unavailable."
+            : "RFC 1918 private IPv4 networks only, with a maximum size of /16."}
         </p>
       </div>
 

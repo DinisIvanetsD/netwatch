@@ -47,3 +47,25 @@ def test_production_rejects_wildcard_allowed_hosts() -> None:
 def test_rejects_invalid_technitium_dns_port() -> None:
     with pytest.raises(ValidationError, match="TECHNITIUM_DNS_PORT"):
         Settings(technitium_dns_port=70_000)
+
+
+def test_accepts_only_loopback_or_docker_host_sensor_urls() -> None:
+    configured = Settings(netwatch_host_sensor_url="http://host.docker.internal:8765")
+    assert configured.netwatch_host_sensor_url == "http://host.docker.internal:8765"
+
+    with pytest.raises(ValidationError, match="NETWATCH_HOST_SENSOR_URL"):
+        Settings(netwatch_host_sensor_url="https://example.com:8765")
+
+
+def test_host_sensor_is_opt_in_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("NETWATCH_HOST_SENSOR_URL", raising=False)
+    configured = Settings(_env_file=None)
+
+    assert configured.netwatch_host_sensor_url is None
+    assert configured.effective_host_sensor_token is None
+
+
+def test_derives_a_separate_host_sensor_token() -> None:
+    configured = Settings(netwatch_secret_key="test-secret")
+    assert configured.effective_host_sensor_token
+    assert configured.effective_host_sensor_token != "test-secret"

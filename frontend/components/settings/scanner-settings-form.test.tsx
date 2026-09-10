@@ -16,6 +16,7 @@ vi.mock("@/lib/api", () => ({ updateSettings: mocks.updateSettings }));
 
 const initial: NetWatchSettings = {
   subnet: "192.168.1.0/24",
+  auto_detect_network: false,
   scan_interval: 60,
   scan_concurrency: 32,
   monitoring_enabled: true,
@@ -49,6 +50,7 @@ describe("ScannerSettingsForm", () => {
       expect(mocks.updateSettings).toHaveBeenCalledWith(
         expect.objectContaining({
           subnet: "10.42.0.0/24",
+          auto_detect_network: false,
           scan_interval: 60,
           scan_concurrency: 32,
         }),

@@ -58,6 +58,8 @@ export function DeviceAccessPanel({
   const [working, setWorking] = useState<string | null>(null);
   const [message, setMessage] = useState("");
   const capabilities = provider?.capabilities ?? {};
+  const dnsOnlyProvider =
+    provider?.provider_id === "technitium_dns_containment";
 
   async function saveIdentity() {
     setWorking("identity");
@@ -98,7 +100,8 @@ export function DeviceAccessPanel({
     }
   }
 
-  const networkUnavailable = !provider?.configured;
+  const networkUnavailable =
+    !provider?.configured || provider.status !== "connected";
   const pauseCapability =
     device.internet_access === "allowed"
       ? "block_internet"
@@ -179,11 +182,13 @@ export function DeviceAccessPanel({
           </div>
         </CardHeader>
         <CardContent className="space-y-5 pt-5">
-          {networkUnavailable ? (
+          {networkUnavailable || dnsOnlyProvider ? (
             <p className="rounded-lg border border-amber-500/25 bg-amber-500/5 p-3 text-xs leading-5">
-              Router integration required for network enforcement. Buttons
-              remain disabled and the current device state will not be changed
-              falsely.
+              {dnsOnlyProvider
+                ? "DNS containment is available for devices confirmed in the Technitium query log. It blocks domain lookups, but direct IP, encrypted DNS, and VPN traffic can bypass it. Full quarantine requires a compatible router or firewall."
+                : provider?.status !== "connected"
+                  ? `${provider?.message ?? "The configured provider is unavailable."} Buttons remain disabled until it reconnects.`
+                  : "Router integration required for network enforcement. Buttons remain disabled and the current device state will not be changed falsely."}
             </p>
           ) : null}
           <div className="grid gap-3 sm:grid-cols-3">
@@ -234,26 +239,55 @@ export function DeviceAccessPanel({
                     60,
                   )
                 }
-                disabled={working !== null || !capabilities[pauseCapability]}
+                disabled={
+                  working !== null ||
+                  networkUnavailable ||
+                  !capabilities[pauseCapability]
+                }
               >
                 <Clock3 />
                 {device.internet_access === "allowed"
-                  ? "Pause Internet 1 hour"
+                  ? dnsOnlyProvider
+                    ? "Pause via DNS 1 hour"
+                    : "Pause Internet 1 hour"
                   : "Resume Internet"}
               </Button>
             </span>
+            {device.internet_access === "allowed" ? (
+              <ConfirmControl
+                title={`Block Internet for ${deviceDisplayName(device)}?`}
+                description={
+                  dnsOnlyProvider
+                    ? "This applies a persistent all-domain DNS block after NetWatch confirms the device uses Technitium. It is not firewall quarantine and can be bypassed with direct IP, DoH, or VPN."
+                    : "NetWatch will request a persistent Internet block through the configured network provider."
+                }
+                label={dnsOnlyProvider ? "Block via DNS" : "Block Internet"}
+                icon={Ban}
+                destructive
+                disabled={
+                  working !== null ||
+                  networkUnavailable ||
+                  !capabilities.block_internet
+                }
+                onConfirm={() => act("block-internet")}
+              />
+            ) : null}
             <ConfirmControl
               title={
                 device.trust_state === "quarantined"
                   ? `Release ${deviceDisplayName(device)}?`
                   : `Quarantine ${deviceDisplayName(device)}?`
               }
-              description="NetWatch will request this action through the configured router and update the state only after confirmation."
+              description="NetWatch will request full Internet and LAN isolation through a compatible router or firewall and update the state only after confirmation."
               label={
                 device.trust_state === "quarantined" ? "Release" : "Quarantine"
               }
               icon={WifiOff}
-              disabled={working !== null || !capabilities[quarantineCapability]}
+              disabled={
+                working !== null ||
+                networkUnavailable ||
+                !capabilities[quarantineCapability]
+              }
               onConfirm={() =>
                 act(
                   device.trust_state === "quarantined"
@@ -268,7 +302,11 @@ export function DeviceAccessPanel({
               label="Block device"
               icon={Ban}
               destructive
-              disabled={working !== null || !capabilities.firewall_rules}
+              disabled={
+                working !== null ||
+                networkUnavailable ||
+                !capabilities.firewall_rules
+              }
               onConfirm={() => act("block")}
             />
           </div>

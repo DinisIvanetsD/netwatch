@@ -7,6 +7,7 @@ from core.config import normalize_private_subnet
 
 class SettingsResponse(BaseModel):
     subnet: str
+    auto_detect_network: bool
     scan_interval: int
     scan_concurrency: int
     monitoring_enabled: bool
@@ -23,6 +24,7 @@ class SettingsResponse(BaseModel):
 
 class SettingsUpdate(BaseModel):
     subnet: str | None = None
+    auto_detect_network: bool | None = None
     scan_interval: int | None = Field(default=None, ge=10, le=86_400)
     scan_concurrency: int | None = Field(default=None, ge=1, le=256)
     monitoring_enabled: bool | None = None

@@ -33,11 +33,13 @@ async def test_unconfigured_providers_report_honest_capabilities() -> None:
 
 def test_capability_matrix_api_is_explicit() -> None:
     previous_dns = integration_routes.provider_registry.dns
+    previous_network = integration_routes.provider_registry.network
     integration_routes.provider_registry.clear_dns()
     try:
         response = TestClient(app).get("/api/integrations/capabilities")
     finally:
         integration_routes.provider_registry.dns = previous_dns
+        integration_routes.provider_registry.network = previous_network
 
     assert response.status_code == 200
     items = response.json()["items"]

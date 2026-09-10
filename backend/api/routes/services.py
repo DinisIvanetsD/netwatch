@@ -44,6 +44,7 @@ async def list_services(
         .where(
             Device.source == active_source(),
             Device.network_cidr == settings.netwatch_subnet,
+            Device.network_id == settings.netwatch_network_id,
         )
     )
     if active_only:
@@ -59,6 +60,7 @@ async def list_device_services(device_id: int, session: SessionDependency) -> Se
         device_id,
         source=active_source(),
         network_cidr=settings.netwatch_subnet,
+        network_id=settings.netwatch_network_id,
     )
     if device is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found.")

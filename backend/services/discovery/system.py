@@ -3,21 +3,63 @@ import platform
 import re
 import shutil
 import socket
+from contextlib import suppress
 from ipaddress import IPv4Address, IPv4Network
 
 from core.config import settings
-from services.discovery.base import DiscoveryAdapter, DiscoveryResult
+from services.discovery.base import DiscoveryAdapter, DiscoveryResult, NetworkEnvironment
 
 LATENCY_PATTERN = re.compile(r"(?:time[=<]|Average = )\s*(\d+(?:\.\d+)?)\s*ms", re.IGNORECASE)
 ARP_PATTERN = re.compile(
     r"(?P<ip>\d{1,3}(?:\.\d{1,3}){3})\s+(?P<mac>[0-9a-f]{2}(?:[:-][0-9a-f]{2}){5})",
     re.IGNORECASE,
 )
+NETBIOS_NAME_PATTERN = re.compile(
+    r"^\s*(?P<name>[^\s<]{1,15})\s+<00>\s+UNIQUE\b",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+async def _cleanup_process(process: asyncio.subprocess.Process) -> None:
+    if process.returncode is None:
+        with suppress(ProcessLookupError):
+            process.terminate()
+        try:
+            await asyncio.wait_for(process.wait(), timeout=0.5)
+        except TimeoutError:
+            if process.returncode is None:
+                with suppress(ProcessLookupError):
+                    process.kill()
+                await process.wait()
+    else:
+        await process.wait()
+
+
+async def _communicate_with_cleanup(
+    process: asyncio.subprocess.Process, deadline: float
+) -> tuple[bytes, bytes]:
+    try:
+        return await asyncio.wait_for(process.communicate(), timeout=deadline)
+    except (TimeoutError, asyncio.CancelledError):
+        cleanup = asyncio.create_task(_cleanup_process(process))
+        try:
+            await asyncio.shield(cleanup)
+        except asyncio.CancelledError:
+            await cleanup
+        raise
 
 
 class SystemDiscoveryAdapter(DiscoveryAdapter):
-    def __init__(self, timeout_ms: int = 900) -> None:
+    def __init__(self, timeout_ms: int = 900, concurrency: int | None = None) -> None:
         self.timeout_ms = timeout_ms
+        self.concurrency = concurrency
+
+    async def detect_network(self) -> NetworkEnvironment | None:
+        if platform.system() != "Windows":
+            return None
+        from services.discovery.windows import detect_windows_network
+
+        return await detect_windows_network()
 
     async def discover(self, network: IPv4Network) -> list[DiscoveryResult]:
         if shutil.which("ping") is None:
@@ -48,7 +90,7 @@ class SystemDiscoveryAdapter(DiscoveryAdapter):
 
         workers = [
             asyncio.create_task(worker())
-            for _ in range(min(settings.scan_concurrency, queue.qsize()))
+            for _ in range(min(self.concurrency or settings.scan_concurrency, queue.qsize()))
         ]
         try:
             await asyncio.gather(*workers)
@@ -77,8 +119,8 @@ class SystemDiscoveryAdapter(DiscoveryAdapter):
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.DEVNULL,
             )
-            stdout, _ = await asyncio.wait_for(
-                process.communicate(), timeout=(self.timeout_ms / 1000) + 1
+            stdout, _ = await _communicate_with_cleanup(
+                process, deadline=(self.timeout_ms / 1000) + 1
             )
         except (FileNotFoundError, TimeoutError):
             return DiscoveryResult(ip_address=address, reachable=False)
@@ -104,7 +146,26 @@ class SystemDiscoveryAdapter(DiscoveryAdapter):
             )
             return hostname
         except (OSError, TimeoutError):
+            return await self._resolve_netbios_name(address)
+
+    async def _resolve_netbios_name(self, address: str) -> str | None:
+        if platform.system() != "Windows" or shutil.which("nbtstat") is None:
             return None
+        try:
+            process = await asyncio.create_subprocess_exec(
+                "nbtstat",
+                "-A",
+                address,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            stdout, _ = await _communicate_with_cleanup(process, deadline=1.5)
+        except (FileNotFoundError, TimeoutError):
+            return None
+        if process.returncode != 0:
+            return None
+        match = NETBIOS_NAME_PATTERN.search(stdout.decode(errors="replace"))
+        return match.group("name") if match else None
 
     async def _read_neighbors(self) -> dict[str, str]:
         try:
@@ -114,7 +175,7 @@ class SystemDiscoveryAdapter(DiscoveryAdapter):
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.DEVNULL,
             )
-            stdout, _ = await asyncio.wait_for(process.communicate(), timeout=2)
+            stdout, _ = await _communicate_with_cleanup(process, deadline=2)
         except (FileNotFoundError, TimeoutError):
             return {}
 

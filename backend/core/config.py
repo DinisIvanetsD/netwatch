@@ -1,6 +1,8 @@
 from functools import lru_cache
+from hashlib import sha256
 from ipaddress import ip_network
 from typing import Literal
+from urllib.parse import urlsplit, urlunsplit
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import field_validator
@@ -37,6 +39,10 @@ class Settings(BaseSettings):
     database_echo: bool = False
     netwatch_demo_mode: bool = False
     netwatch_subnet: str = "192.168.1.0/24"
+    # Internal inventory boundary. A verified host sensor replaces the legacy
+    # value with an opaque physical-network fingerprint at scan time.
+    netwatch_network_id: str = "legacy"
+    auto_detect_network: bool = False
     scan_interval: int = 60
     scan_concurrency: int = 32
     offline_after_missed_scans: int = 3
@@ -60,6 +66,9 @@ class Settings(BaseSettings):
     technitium_username: str = "admin"
     technitium_password: str | None = None
     technitium_dns_port: int = 53
+    netwatch_host_sensor_url: str | None = None
+    netwatch_host_sensor_token: str | None = None
+    host_sensor_timeout_seconds: int = 180
 
     @field_validator("database_url", mode="before")
     @classmethod
@@ -74,6 +83,35 @@ class Settings(BaseSettings):
     @classmethod
     def validate_private_subnet(cls, value: str) -> str:
         return normalize_private_subnet(value)
+
+    @field_validator("netwatch_host_sensor_url")
+    @classmethod
+    def validate_host_sensor_url(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        parsed = urlsplit(value.strip())
+        allowed_hosts = {"localhost", "127.0.0.1", "::1", "host.docker.internal"}
+        if (
+            parsed.scheme != "http"
+            or parsed.hostname not in allowed_hosts
+            or parsed.username
+            or parsed.password
+            or parsed.path not in {"", "/"}
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise ValueError(
+                "NETWATCH_HOST_SENSOR_URL must be an HTTP URL for localhost or "
+                "host.docker.internal"
+            )
+        try:
+            port = parsed.port
+        except ValueError as error:
+            raise ValueError("NETWATCH_HOST_SENSOR_URL has an invalid port") from error
+        if port is None or not 1 <= port <= 65_535:
+            raise ValueError("NETWATCH_HOST_SENSOR_URL must include a valid port")
+        host = f"[{parsed.hostname}]" if ":" in parsed.hostname else parsed.hostname
+        return urlunsplit(("http", f"{host}:{port}", "", "", ""))
 
     @field_validator("scan_interval")
     @classmethod
@@ -110,6 +148,13 @@ class Settings(BaseSettings):
             raise ValueError("TECHNITIUM_DNS_PORT must be a valid TCP/UDP port")
         return value
 
+    @field_validator("host_sensor_timeout_seconds")
+    @classmethod
+    def validate_host_sensor_timeout(cls, value: int) -> int:
+        if not 10 <= value <= 600:
+            raise ValueError("HOST_SENSOR_TIMEOUT_SECONDS must be between 10 and 600")
+        return value
+
     @field_validator("netwatch_timezone")
     @classmethod
     def validate_timezone(cls, value: str) -> str:
@@ -143,6 +188,14 @@ class Settings(BaseSettings):
         if not ports or len(ports) > 64 or any(port < 1 or port > 65535 for port in ports):
             raise ValueError("SERVICE_PORTS must contain 1-64 valid TCP ports")
         return ports
+
+    @property
+    def effective_host_sensor_token(self) -> str | None:
+        if self.netwatch_host_sensor_token:
+            return self.netwatch_host_sensor_token
+        if self.netwatch_secret_key:
+            return sha256(f"netwatch-host-sensor:{self.netwatch_secret_key}".encode()).hexdigest()
+        return None
 
 
 @lru_cache

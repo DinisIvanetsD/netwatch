@@ -1,5 +1,6 @@
 from services.providers.dns.base import (
     DNSCapability,
+    DNSContainmentPreflight,
     DNSControlProvider,
     DNSQueryRecord,
     DomainRuleRequest,
@@ -11,6 +12,7 @@ from services.providers.dns.validation import normalize_domain
 
 __all__ = [
     "DNSCapability",
+    "DNSContainmentPreflight",
     "DNSControlProvider",
     "DNSQueryRecord",
     "DomainRuleRequest",

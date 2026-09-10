@@ -1,4 +1,5 @@
 import type { Device, DeviceTrustState } from "@/types/device";
+import type { ProviderStatus } from "@/types/integration";
 
 export type RuleScope = "global" | "profile" | "device";
 export type RuleAction = "allow" | "block";
@@ -90,6 +91,7 @@ export interface AccessOverview {
   provider_id: string;
   provider_name: string;
   provider_configured: boolean;
+  provider_status: ProviderStatus;
   capabilities: Record<string, boolean>;
   message: string;
 }

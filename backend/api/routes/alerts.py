@@ -6,12 +6,12 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.routes.devices import active_source
-from core.config import settings
 from database.session import get_session
 from models.alert import Alert
 from models.device import Device
 from models.event import EventSeverity
 from schemas.alert import AlertListResponse, AlertResponse, AlertUpdate
+from services.network_identity import device_in_current_network
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 SessionDependency = Annotated[AsyncSession, Depends(get_session)]
@@ -43,7 +43,7 @@ async def list_alerts(
 ) -> AlertListResponse:
     filters = [
         Alert.source == active_source(),
-        or_(Alert.device_id.is_(None), Device.network_cidr == settings.netwatch_subnet),
+        or_(Alert.device_id.is_(None), device_in_current_network()),
     ]
     if severity is not None:
         filters.append(Alert.severity == severity)
@@ -70,7 +70,7 @@ async def update_alert(
         .where(
             Alert.id == alert_id,
             Alert.source == active_source(),
-            or_(Alert.device_id.is_(None), Device.network_cidr == settings.netwatch_subnet),
+            or_(Alert.device_id.is_(None), device_in_current_network()),
         )
     )
     if alert is None:

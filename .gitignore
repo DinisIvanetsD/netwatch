@@ -23,6 +23,8 @@ venv/
 *.sqlite
 *.sqlite3
 artifacts/
+.netwatch-sensor.pid
+.netwatch-port53-result.json
 
 # Editors and OS files
 .idea/

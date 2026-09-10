@@ -7,11 +7,11 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.routes.devices import active_source
-from core.config import settings
 from database.session import get_session
 from models.device import Device
 from models.event import Event, EventSeverity, EventType
 from schemas.history import EventListResponse, EventResponse
+from services.network_identity import device_in_current_network
 
 router = APIRouter(prefix="/events", tags=["events"])
 SessionDependency = Annotated[AsyncSession, Depends(get_session)]
@@ -30,7 +30,7 @@ async def list_events(
 ) -> EventListResponse:
     filters = [
         Event.source == active_source(),
-        or_(Event.device_id.is_(None), Device.network_cidr == settings.netwatch_subnet),
+        or_(Event.device_id.is_(None), device_in_current_network()),
     ]
     if device_id is not None:
         filters.append(Event.device_id == device_id)

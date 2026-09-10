@@ -2,16 +2,16 @@ import asyncio
 import hashlib
 import json
 import re
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from ipaddress import ip_address, ip_network
 from typing import Any
-from urllib.parse import urlsplit
 
 import httpx
 
 from services.providers.common import ProviderHealth, ProviderStatus
 from services.providers.dns.base import (
     DNSCapability,
+    DNSContainmentPreflight,
     DNSControlProvider,
     DNSQueryRecord,
     DomainRuleRequest,
@@ -23,6 +23,7 @@ _BLOCKED_RESPONSE_TYPES = {"Blocked", "UpstreamBlocked", "CacheBlocked"}
 _MANAGED_REFERENCE_PATTERN = re.compile(r"^[a-z0-9_-]{1,40}$", re.IGNORECASE)
 _NETWATCH_GROUP_PREFIX = "netwatch-"
 _NETWATCH_RULES_KEY = "netwatchManagedRules"
+_NETWATCH_CONTAINMENTS_KEY = "netwatchManagedContainments"
 _PRIVATE_DNS_CLIENTS = ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.0/8")
 
 
@@ -44,6 +45,7 @@ class TechnitiumDNSProvider(DNSControlProvider):
             DNSCapability.DOMAIN_BLOCKING,
             DNSCapability.CLIENT_RULES,
             DNSCapability.STATISTICS,
+            DNSCapability.DNS_CONTAINMENT,
         }
     )
 
@@ -61,10 +63,6 @@ class TechnitiumDNSProvider(DNSControlProvider):
         self._password = password
         self.network_cidr = str(ip_network(network_cidr, strict=True))
         self._client = client
-        self._owns_advanced_config = urlsplit(self.server_url).hostname in {
-            "technitium",
-            "dns.netwatch.lan",
-        }
         self._token: str | None = None
         self._login_lock = asyncio.Lock()
         self._rules_lock = asyncio.Lock()
@@ -289,6 +287,84 @@ class TechnitiumDNSProvider(DNSControlProvider):
             raise TechnitiumProviderError("Technitium returned invalid statistics")
         return response
 
+    async def preflight_client_containment(
+        self, client: str, *, max_age_seconds: int = 300
+    ) -> DNSContainmentPreflight:
+        normalized = self._validated_clients((client,))[0]
+        records = await self.query_history(limit=20, client=normalized)
+        cutoff = datetime.now(UTC) - timedelta(seconds=max(1, max_age_seconds))
+        recent = [record for record in records if record.timestamp >= cutoff]
+        if recent:
+            return DNSContainmentPreflight(
+                normalized, True, len(recent), "Recent per-client DNS query evidence found."
+            )
+        return DNSContainmentPreflight(
+            normalized,
+            False,
+            0,
+            "No recent per-client DNS query evidence; containment was not applied.",
+        )
+
+    async def contain_client_dns(self, client: str) -> str:
+        preflight = await self.preflight_client_containment(client)
+        if not preflight.ready:
+            raise TechnitiumProviderError(preflight.message)
+        normalized = preflight.client
+        reference = self._containment_reference(normalized)
+        async with self._rules_lock:
+            app_name = await self._advanced_app_name()
+            config = await self._get_app_config(app_name)
+            state = self._managed_containments(config)
+            if reference not in state:
+                entry: dict[str, Any] = {"client": normalized}
+                mappings = config.get("networkGroupMap")
+                previous_group = mappings.get(normalized) if isinstance(mappings, dict) else None
+                if (
+                    isinstance(previous_group, str)
+                    and not previous_group.startswith(_NETWATCH_GROUP_PREFIX)
+                ):
+                    entry["previousGroup"] = previous_group
+                state[reference] = entry
+            await self._set_managed_config(app_name, config, self._managed_rules(config), state)
+        return f"technitium:{reference}"
+
+    async def release_client_dns(self, client: str) -> bool:
+        normalized = self._validated_clients((client,))[0]
+        reference = self._containment_reference(normalized)
+        async with self._rules_lock:
+            app_name = await self._advanced_app_name()
+            config = await self._get_app_config(app_name)
+            containments = self._managed_containments(config)
+            entry = containments.get(reference)
+            if entry is None:
+                return False
+            del containments[reference]
+            config = self._restore_previous_mapping(config, normalized, entry)
+            await self._set_managed_config(
+                app_name, config, self._managed_rules(config), containments
+            )
+        return True
+
+    async def clear_client_dns_containments(self) -> int:
+        async with self._rules_lock:
+            app_name = await self._advanced_app_name()
+            config = await self._get_app_config(app_name)
+            containments = self._managed_containments(config)
+            if not containments:
+                return 0
+            restored = config
+            for containment in containments.values():
+                client = containment.get("client")
+                if isinstance(client, str):
+                    restored = self._restore_previous_mapping(restored, client, containment)
+            await self._set_managed_config(
+                app_name, restored, self._managed_rules(restored), {}
+            )
+            return len(containments)
+
+    def set_network_cidr(self, network_cidr: str) -> None:
+        self.network_cidr = str(ip_network(network_cidr, strict=True))
+
     async def add_domain_rule(self, rule: DomainRuleRequest) -> bool:
         reference = self._direct_reference(rule)
         await self.upsert_managed_domain_rule(reference, rule)
@@ -417,8 +493,13 @@ class TechnitiumDNSProvider(DNSControlProvider):
         app_name: str,
         existing: dict[str, Any],
         state: dict[str, dict[str, Any]],
+        containments: dict[str, dict[str, Any]] | None = None,
     ) -> None:
-        config = self._render_config(existing, state)
+        config = self._render_config(
+            existing,
+            state,
+            self._managed_containments(existing) if containments is None else containments,
+        )
         await self._request(
             "POST",
             "/api/apps/config/set",
@@ -430,7 +511,11 @@ class TechnitiumDNSProvider(DNSControlProvider):
         self,
         existing: dict[str, Any],
         state: dict[str, dict[str, Any]],
+        containments: dict[str, dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
+        managed_containments = (
+            self._managed_containments(existing) if containments is None else containments
+        )
         config = dict(existing)
         config.update(
             {
@@ -444,10 +529,11 @@ class TechnitiumDNSProvider(DNSControlProvider):
                 ),
                 "localEndPointGroupMap": existing.get("localEndPointGroupMap", {}),
                 _NETWATCH_RULES_KEY: state,
+                _NETWATCH_CONTAINMENTS_KEY: managed_containments,
                 "netwatchManagedConfigVersion": 1,
             }
         )
-        existing_mappings = {} if self._owns_advanced_config else existing.get("networkGroupMap")
+        existing_mappings = existing.get("networkGroupMap")
         mappings = {
             str(network): str(group)
             for network, group in (
@@ -455,7 +541,7 @@ class TechnitiumDNSProvider(DNSControlProvider):
             )
             if not str(group).startswith(_NETWATCH_GROUP_PREFIX)
         }
-        existing_groups = [] if self._owns_advanced_config else existing.get("groups")
+        existing_groups = existing.get("groups")
         groups = [
             group
             for group in (existing_groups if isinstance(existing_groups, list) else [])
@@ -464,9 +550,6 @@ class TechnitiumDNSProvider(DNSControlProvider):
                 and str(group.get("name", "")).startswith(_NETWATCH_GROUP_PREFIX)
             )
         ]
-        if self._owns_advanced_config:
-            config["localEndPointGroupMap"] = {}
-
         global_rules = [rule for rule in state.values() if not rule.get("clients")]
         by_client: dict[str, list[dict[str, Any]]] = {}
         for rule in state.values():
@@ -484,6 +567,14 @@ class TechnitiumDNSProvider(DNSControlProvider):
             group_name = f"netwatch-client-{client.replace('.', '-').replace(':', '-')}"
             mappings[client] = group_name
             groups.append(self._group(group_name, [*global_rules, *client_rules]))
+
+        for containment in managed_containments.values():
+            client = str(containment.get("client", ""))
+            if not client:
+                continue
+            group_name = f"netwatch-containment-{client.replace('.', '-').replace(':', '-')}"
+            mappings[client] = group_name
+            groups.append(self._containment_group(group_name))
 
         config["networkGroupMap"] = mappings
         config["groups"] = groups
@@ -522,6 +613,25 @@ class TechnitiumDNSProvider(DNSControlProvider):
         }
 
     @staticmethod
+    def _containment_group(name: str) -> dict[str, Any]:
+        return {
+            "name": name,
+            "enableBlocking": True,
+            "allowTxtBlockingReport": True,
+            "blockAsNxDomain": True,
+            "blockingAddresses": ["0.0.0.0", "::"],
+            "allowed": [],
+            "blocked": [],
+            "allowListUrls": [],
+            "blockListUrls": [],
+            "allowedRegex": [],
+            "blockedRegex": ["^.+$"],
+            "regexAllowListUrls": [],
+            "regexBlockListUrls": [],
+            "adblockListUrls": [],
+        }
+
+    @staticmethod
     def _managed_rules(config: dict[str, Any]) -> dict[str, dict[str, Any]]:
         raw = config.get(_NETWATCH_RULES_KEY)
         if not isinstance(raw, dict):
@@ -531,6 +641,38 @@ class TechnitiumDNSProvider(DNSControlProvider):
             for reference, rule in raw.items()
             if isinstance(reference, str) and isinstance(rule, dict)
         }
+
+    @staticmethod
+    def _managed_containments(config: dict[str, Any]) -> dict[str, dict[str, Any]]:
+        raw = config.get(_NETWATCH_CONTAINMENTS_KEY)
+        if not isinstance(raw, dict):
+            return {}
+        return {
+            str(reference): dict(value)
+            for reference, value in raw.items()
+            if isinstance(reference, str) and isinstance(value, dict)
+        }
+
+    @staticmethod
+    def _containment_reference(client: str) -> str:
+        return f"containment-{hashlib.sha256(client.encode()).hexdigest()[:24]}"
+
+    @staticmethod
+    def _restore_previous_mapping(
+        config: dict[str, Any], client: str, containment: dict[str, Any]
+    ) -> dict[str, Any]:
+        restored = dict(config)
+        raw_mappings = restored.get("networkGroupMap")
+        mappings = dict(raw_mappings) if isinstance(raw_mappings, dict) else {}
+        current = mappings.get(client)
+        if isinstance(current, str) and current.startswith(_NETWATCH_GROUP_PREFIX):
+            previous = containment.get("previousGroup")
+            if isinstance(previous, str) and previous:
+                mappings[client] = previous
+            else:
+                mappings.pop(client, None)
+        restored["networkGroupMap"] = mappings
+        return restored
 
     def _validated_clients(self, clients: tuple[str, ...]) -> tuple[str, ...]:
         network = ip_network(self.network_cidr)
@@ -568,7 +710,8 @@ class TechnitiumDNSProvider(DNSControlProvider):
         if not value:
             return None
         try:
-            return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed
         except ValueError:
             return None
 

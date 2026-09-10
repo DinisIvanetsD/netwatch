@@ -121,4 +121,31 @@ describe("DeviceAccessPanel", () => {
       await screen.findByText(/identity and profile saved/i),
     ).toBeInTheDocument();
   });
+
+  it("enables honest DNS-only containment without enabling quarantine", () => {
+    render(
+      <DeviceAccessPanel
+        initial={device}
+        profiles={[]}
+        provider={{
+          ...provider,
+          provider_id: "technitium_dns_containment",
+          display_name: "Technitium DNS-only containment",
+          configured: true,
+          capabilities: {
+            ...provider.capabilities,
+            block_internet: true,
+            unblock_internet: true,
+          },
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Pause via DNS 1 hour" }),
+    ).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Block via DNS" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Quarantine" })).toBeDisabled();
+    expect(screen.getByText(/direct IP, encrypted DNS, and VPN/i)).toBeInTheDocument();
+  });
 });

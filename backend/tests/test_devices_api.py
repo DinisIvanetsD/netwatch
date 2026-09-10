@@ -49,10 +49,18 @@ async def device_client(
         async with device_session_factory() as session:
             yield session
 
+    previous_monitoring = settings.monitoring_enabled
+    previous_network_id = settings.netwatch_network_id
+    settings.monitoring_enabled = False
     app.dependency_overrides[get_session] = override_session
-    with TestClient(app) as client:
-        yield client
-    app.dependency_overrides.clear()
+    try:
+        with TestClient(app) as client:
+            settings.netwatch_network_id = "legacy"
+            yield client
+    finally:
+        settings.monitoring_enabled = previous_monitoring
+        settings.netwatch_network_id = previous_network_id
+        app.dependency_overrides.clear()
 
 
 @pytest.fixture
@@ -303,6 +311,7 @@ async def test_scanner_and_retention_settings_can_be_updated(
 ) -> None:
     original = {
         "netwatch_subnet": settings.netwatch_subnet,
+        "netwatch_network_id": settings.netwatch_network_id,
         "scan_interval": settings.scan_interval,
         "scan_concurrency": settings.scan_concurrency,
         "monitoring_enabled": settings.monitoring_enabled,
@@ -335,6 +344,46 @@ async def test_scanner_and_retention_settings_can_be_updated(
     finally:
         for key, value in original.items():
             setattr(settings, key, value)
+
+
+async def test_device_inventory_isolated_when_two_networks_share_the_same_cidr(
+    device_client: TestClient,
+    device_session_factory: async_sessionmaker[AsyncSession],
+    live_device: Device,
+) -> None:
+    previous_network_id = settings.netwatch_network_id
+    first_scope = "windows:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    second_scope = "windows:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    now = datetime.now(UTC)
+    async with device_session_factory() as session:
+        first = await session.get(Device, live_device.id)
+        assert first is not None
+        first.network_id = first_scope
+        second = Device(
+            name="Other network device",
+            ip_address=first.ip_address,
+            status=DeviceStatus.ONLINE,
+            source=DeviceSource.LIVE,
+            network_cidr=first.network_cidr,
+            network_id=second_scope,
+            first_seen=now,
+            last_seen=now,
+            is_gateway=False,
+        )
+        session.add(second)
+        await session.commit()
+        await session.refresh(second)
+
+    try:
+        settings.netwatch_network_id = first_scope
+        first_listing = device_client.get("/api/devices")
+        settings.netwatch_network_id = second_scope
+        second_listing = device_client.get("/api/devices")
+    finally:
+        settings.netwatch_network_id = previous_network_id
+
+    assert [item["id"] for item in first_listing.json()["items"]] == [live_device.id]
+    assert [item["id"] for item in second_listing.json()["items"]] == [second.id]
 
 
 async def test_clear_history_preserves_inventory_and_services(

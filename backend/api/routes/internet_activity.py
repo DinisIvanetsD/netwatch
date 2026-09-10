@@ -86,6 +86,7 @@ async def internet_activity_diagnostics(
                 select(Device).where(
                     Device.source == active_source(),
                     Device.network_cidr == settings.netwatch_subnet,
+                    Device.network_id == settings.netwatch_network_id,
                 )
             )
         ).all()
@@ -154,6 +155,7 @@ async def list_internet_activity(
     filters = [
         Device.source == active_source(),
         Device.network_cidr == settings.netwatch_subnet,
+        Device.network_id == settings.netwatch_network_id,
         InternetActivity.timestamp >= datetime.now(UTC) - timedelta(hours=hours),
     ]
     if device_id is not None:
@@ -212,6 +214,7 @@ async def internet_activity_summary(
     filters = [
         Device.source == active_source(),
         Device.network_cidr == settings.netwatch_subnet,
+        Device.network_id == settings.netwatch_network_id,
         InternetActivity.timestamp >= since,
     ]
     if device_id is not None:

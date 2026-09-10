@@ -34,6 +34,7 @@ async def list_devices(
     devices, total = await repository.list(
         source=active_source(),
         network_cidr=settings.netwatch_subnet,
+        network_id=settings.netwatch_network_id,
         page=page,
         per_page=per_page,
         status=device_status,
@@ -71,6 +72,7 @@ async def get_device(device_id: int, session: SessionDependency) -> DeviceRespon
         device_id,
         source=active_source(),
         network_cidr=settings.netwatch_subnet,
+        network_id=settings.netwatch_network_id,
     )
     if device is None:
         raise HTTPException(
@@ -100,6 +102,7 @@ async def get_device_metrics(
         device_id,
         source=active_source(),
         network_cidr=settings.netwatch_subnet,
+        network_id=settings.netwatch_network_id,
     )
     if device is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found.")
@@ -138,6 +141,7 @@ async def get_device_events(
         device_id,
         source=active_source(),
         network_cidr=settings.netwatch_subnet,
+        network_id=settings.netwatch_network_id,
     )
     if device is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found.")

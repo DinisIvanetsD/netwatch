@@ -105,6 +105,31 @@ docker compose up --build
 
 The normal bridge-network configuration is suitable for the dashboard and API. Low-level ARP/ICMP discovery may require host networking or additional capabilities on Linux and behaves differently under Docker Desktop on macOS and Windows. NetWatch will expose those limitations rather than inventing results.
 
+### Windows physical-network sensor
+
+Docker Desktop normally hides the physical Wi-Fi/Ethernet ARP table from Linux containers. On
+Windows, start NetWatch's loopback-only sensor before Compose to expose only validated discovery
+facts to the backend:
+
+```powershell
+.\scripts\start-windows-sensor.ps1
+docker compose up -d --build
+```
+
+Then set `AUTO_DETECT_NETWORK=true` and
+`NETWATCH_HOST_SENSOR_URL=http://host.docker.internal:8765`. The sensor binds only to
+`127.0.0.1`, requires a bearer token derived from `NETWATCH_SECRET_KEY` (or the dedicated sensor
+token), and refuses to scan anything except the active RFC 1918 Windows network. It supplies the
+physical interface IP, gateway, DNS servers, hostname, and ARP MAC observations. Stop it with:
+
+```powershell
+.\scripts\stop-windows-sensor.ps1
+```
+
+With automatic detection enabled, the next scan changes the active inventory scope when the PC
+moves to another private network. Devices from the previous scope remain in history but are not
+mixed into the current Devices, Network, Services, or control views.
+
 Compose also starts the pinned Technitium DNS Server integration. Its administration interface
 is available at `http://localhost:5380`. NetWatch automatically provisions Technitium's Query
 Logs and Advanced Blocking apps and stores its own managed policy groups separately. The example
@@ -120,6 +145,10 @@ normally requires `TECHNITIUM_DNS_PORT=53` and a router that advertises the NetW
 | `DATABASE_ECHO` | `false` | Enables verbose SQL logging for focused debugging |
 | `NETWATCH_DEMO_MODE` | `false` | Enables isolated demo fixtures in later phases |
 | `NETWATCH_SUBNET` | `192.168.1.0/24` | Authorized private subnet |
+| `AUTO_DETECT_NETWORK` | `false` | Follow the active private Windows network when the host sensor is available |
+| `NETWATCH_HOST_SENSOR_URL` | none | Loopback host sensor URL; Docker Desktop normally uses `http://host.docker.internal:8765` |
+| `NETWATCH_HOST_SENSOR_TOKEN` | derived | Optional dedicated sensor bearer token |
+| `HOST_SENSOR_TIMEOUT_SECONDS` | `180` | Maximum time allowed for a host-sensor request |
 | `SCAN_INTERVAL` | `60` | Seconds between scheduled scans |
 | `SCAN_CONCURRENCY` | `32` | Maximum concurrent network checks |
 | `OFFLINE_AFTER_MISSED_SCANS` | `3` | Consecutive misses required before a device is marked offline |
@@ -177,7 +206,7 @@ NetWatch stores maintainable category policy identifiers and reports DNS-derived
 
 ## Device Access Control
 
-Open **Control → Access Control** or the **Access** tab on a device. Renaming, ownership, device type, profile assignment, trust, and ignore actions work in NetWatch itself. Pause Internet, block Internet, quarantine, release, and persistent device blocking require a router/firewall provider that confirms the action. Buttons remain disabled with the default **Generic / Monitoring Only** provider.
+Open **Control → Access Control** or the **Access** tab on a device. Renaming, ownership, device type, profile assignment, trust, and ignore actions work in NetWatch itself. When Technitium is connected, NetWatch offers per-device DNS containment only after recent query-log evidence confirms that the device is actually using it. Pause and Block Internet then install a catch-all DNS rule, while full LAN quarantine, disconnect, and persistent firewall blocking remain disabled until a router/firewall provider confirms those capabilities.
 
 Every attempted control action is written to the audit log with its actor, provider, result, timestamp, and message. A failed provider request never changes the displayed device state.
 
@@ -191,6 +220,7 @@ New devices begin as unknown and can generate an alert. The conservative default
 2. Start the stack with `docker compose up -d --build`; the integration and required DNS apps are prepared automatically.
 3. Open `http://localhost:5380` for the Technitium console or **Settings → Technitium DNS Server** for connection status.
 4. For network-wide use, publish DNS on port `53` and configure the router DHCP/DNS setting to advertise the NetWatch host address. Merely scanning the LAN does not route DNS through NetWatch.
+5. On Windows, `scripts/enable-technitium-port53.ps1` can be run as Administrator to stop Internet Connection Sharing only after checking that Docker and Internet remain available. The script rolls the service back on failure; `scripts/restore-windows-sharedaccess.ps1` restores it explicitly.
 
 If Windows Internet Connection Sharing or another resolver owns port `53`, keep `TECHNITIUM_DNS_PORT=5453` for local testing. Most routers accept only standard DNS port `53`; network-wide activity then requires Technitium on a host where port `53` is available, a dedicated NetWatch gateway, or a router that supports a custom DNS port.
 
@@ -204,7 +234,7 @@ The DNS provider interface is ready for additional adapters, but a Pi-hole adapt
 
 ## Router Integration
 
-The network-control interface defines capability checks for client inventory, status, Internet blocking, release, quarantine, disconnect, bandwidth metrics, and firewall rules. This release ships the safe **Generic / Monitoring Only** fallback. OpenWrt, OPNsense, and UniFi require hardware/API-specific adapters and credentials and are not simulated when no supported router is present.
+The network-control interface defines capability checks for client inventory, status, Internet blocking, release, quarantine, disconnect, bandwidth metrics, and firewall rules. Technitium supplies a deliberately limited DNS-containment fallback; it never advertises LAN quarantine or firewall control. The detected NOS/CHITA web interface has a manual Device Filter but no verified public automation API, so NetWatch does not scrape its login or simulate success. OpenWrt and OPNsense are the recommended targets for authenticated automatic firewall control.
 
 ## HTTPS, Encrypted DNS, and VPN Limitations
 

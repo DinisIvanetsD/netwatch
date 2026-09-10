@@ -6,9 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
 from database.session import get_session
+from models.device import DeviceSource
 from models.setting import AppSetting
 from schemas.settings import HistoryClearResponse, SettingsResponse, SettingsUpdate
 from services.monitoring.engine import monitoring_engine
+from services.network_identity import manual_network_id
+from services.network_transition import transition_network
 from services.realtime.manager import connection_manager
 from services.retention import clear_historical_data
 from services.scanner.coordinator import scan_coordinator
@@ -20,6 +23,7 @@ SessionDependency = Annotated[AsyncSession, Depends(get_session)]
 def current_settings() -> SettingsResponse:
     return SettingsResponse(
         subnet=settings.netwatch_subnet,
+        auto_detect_network=settings.auto_detect_network,
         scan_interval=settings.scan_interval,
         scan_concurrency=settings.scan_concurrency,
         monitoring_enabled=settings.monitoring_enabled,
@@ -44,6 +48,7 @@ async def get_settings() -> SettingsResponse:
 async def update_settings(payload: SettingsUpdate, session: SessionDependency) -> SettingsResponse:
     scanner_keys = {
         "subnet",
+        "auto_detect_network",
         "scan_interval",
         "scan_concurrency",
         "offline_after_missed_scans",
@@ -54,8 +59,18 @@ async def update_settings(payload: SettingsUpdate, session: SessionDependency) -
             detail="Scanner settings cannot change while a scan is running.",
         )
 
+    if payload.subnet is not None and payload.subnet != settings.netwatch_subnet:
+        await transition_network(
+            session,
+            subnet=payload.subnet,
+            network_id=manual_network_id(payload.subnet),
+            source=DeviceSource.DEMO if settings.netwatch_demo_mode else DeviceSource.LIVE,
+            actor="administrator",
+        )
+
     setting_names = {
         "subnet": "netwatch_subnet",
+        "auto_detect_network": "auto_detect_network",
         "scan_interval": "scan_interval",
         "scan_concurrency": "scan_concurrency",
         "monitoring_enabled": "monitoring_enabled",

@@ -45,6 +45,7 @@ class MonitoringEngine:
                 scan = Scan(
                     status=ScanStatus.PENDING,
                     subnet=settings.netwatch_subnet,
+                    network_id=settings.netwatch_network_id,
                     source=DeviceSource.DEMO if settings.netwatch_demo_mode else DeviceSource.LIVE,
                     created_at=datetime.now(UTC),
                 )

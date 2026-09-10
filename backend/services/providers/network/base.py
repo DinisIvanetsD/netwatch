@@ -36,6 +36,7 @@ class NetworkControlProvider(ABC):
     provider_id: str
     display_name: str
     capabilities: frozenset[NetworkCapability]
+    identifier_kind = "mac_or_ip"
 
     def supports(self, capability: NetworkCapability) -> bool:
         return capability in self.capabilities

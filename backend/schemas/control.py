@@ -292,6 +292,7 @@ class AccessOverviewResponse(BaseModel):
     provider_id: str
     provider_name: str
     provider_configured: bool
+    provider_status: str
     capabilities: dict[str, bool]
     message: str
 

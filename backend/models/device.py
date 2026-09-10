@@ -27,10 +27,17 @@ class Device(Base):
             "ix_devices_source_network_ip",
             "source",
             "network_cidr",
+            "network_id",
             "ip_address",
-            unique=True,
+            unique=False,
         ),
-        Index("ix_devices_source_network_status", "source", "network_cidr", "status"),
+        Index(
+            "ix_devices_source_network_status",
+            "source",
+            "network_cidr",
+            "network_id",
+            "status",
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
@@ -51,6 +58,7 @@ class Device(Base):
         nullable=False,
     )
     network_cidr: Mapped[str] = mapped_column(String(50), nullable=False)
+    network_id: Mapped[str] = mapped_column(String(80), default="legacy", nullable=False)
     latency_ms: Mapped[float | None]
     first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -73,3 +81,5 @@ class Device(Base):
     paused_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     quarantine_reason: Mapped[str | None] = mapped_column(String(200))
     quarantined_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    control_provider_id: Mapped[str | None] = mapped_column(String(40))
+    control_identifier: Mapped[str | None] = mapped_column(String(100))

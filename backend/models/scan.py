@@ -32,6 +32,9 @@ class Scan(Base):
     duration_ms: Mapped[float | None] = mapped_column(Float)
     error: Mapped[str | None] = mapped_column(Text)
     subnet: Mapped[str] = mapped_column(String(45), nullable=False)
+    network_id: Mapped[str] = mapped_column(
+        String(80), default="legacy", nullable=False, index=True
+    )
     source: Mapped[DeviceSource] = mapped_column(
         Enum(DeviceSource, native_enum=False, length=16), nullable=False
     )

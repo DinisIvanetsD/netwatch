@@ -68,6 +68,7 @@ async def list_blocked_requests(
     filters = [
         Device.source == active_source(),
         Device.network_cidr == settings.netwatch_subnet,
+        Device.network_id == settings.netwatch_network_id,
         InternetActivity.blocked.is_(True),
         InternetActivity.timestamp >= datetime.now(UTC) - timedelta(hours=hours),
     ]

@@ -26,6 +26,7 @@ from services.control.actions import (
     set_trust_state,
 )
 from services.control.rules import reconcile_profile_rules
+from services.network_identity import device_in_current_network
 from services.providers.network import NetworkCapability
 from services.providers.registry import provider_registry
 from services.realtime.manager import connection_manager
@@ -39,6 +40,7 @@ async def _device(session: AsyncSession, device_id: int) -> Device:
         device_id,
         source=active_source(),
         network_cidr=settings.netwatch_subnet,
+        network_id=settings.netwatch_network_id,
     )
     if device is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Device not found.")
@@ -58,6 +60,7 @@ async def access_overview(session: SessionDependency) -> AccessOverviewResponse:
                 .where(
                     Device.source == active_source(),
                     Device.network_cidr == settings.netwatch_subnet,
+                    Device.network_id == settings.netwatch_network_id,
                 )
                 .order_by(Device.last_seen.desc())
             )
@@ -78,6 +81,7 @@ async def access_overview(session: SessionDependency) -> AccessOverviewResponse:
         provider_id=provider.provider_id,
         provider_name=provider.display_name,
         provider_configured=provider.provider_id != "monitoring_only",
+        provider_status=health.status.value,
         capabilities={
             capability.value: provider.supports(capability) for capability in NetworkCapability
         },
@@ -96,7 +100,7 @@ async def list_access_audit(
         AccessAudit.source == active_source(),
         or_(
             AccessAudit.device_id.is_(None),
-            Device.network_cidr == settings.netwatch_subnet,
+            device_in_current_network(),
         ),
     ]
     if device_id is not None:
@@ -173,6 +177,7 @@ async def update_device_identity(
             .where(
                 Device.source == active_source(),
                 Device.network_cidr == settings.netwatch_subnet,
+                Device.network_id == settings.netwatch_network_id,
                 Device.id != device.id,
             )
             .values(is_gateway=False)

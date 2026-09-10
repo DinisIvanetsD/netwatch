@@ -11,6 +11,7 @@ from database.session import get_session
 from models.device import DeviceSource
 from models.scan import Scan, ScanStatus
 from schemas.scan import ScanListResponse, ScanResponse
+from services.network_identity import scan_in_current_network
 from services.scanner.coordinator import scan_coordinator
 from services.scanner.service import scan_service
 
@@ -33,6 +34,7 @@ async def start_scan(session: SessionDependency) -> ScanResponse:
         scan = Scan(
             status=ScanStatus.PENDING,
             subnet=settings.netwatch_subnet,
+            network_id=settings.netwatch_network_id,
             source=active_source(),
             created_at=datetime.now(UTC),
         )
@@ -55,7 +57,7 @@ async def list_scans(
 ) -> ScanListResponse:
     filters = [
         Scan.source == active_source(),
-        Scan.subnet == settings.netwatch_subnet,
+        scan_in_current_network(),
     ]
     items = list(
         (
@@ -84,7 +86,7 @@ async def get_scan(scan_id: int, session: SessionDependency) -> ScanResponse:
         select(Scan).where(
             Scan.id == scan_id,
             Scan.source == active_source(),
-            Scan.subnet == settings.netwatch_subnet,
+            scan_in_current_network(),
         )
     )
     if scan is None:

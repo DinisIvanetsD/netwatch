@@ -93,6 +93,7 @@ export function AccessControlManager({
   audit: AccessAuditList;
 }) {
   const [devices, setDevices] = useState(initial.devices);
+  const dnsOnlyProvider = initial.provider_id === "technitium_dns_containment";
 
   function replaceDevice(updated: Device) {
     setDevices((current) =>
@@ -113,6 +114,8 @@ export function AccessControlManager({
         device.trust_state === "trusted" || device.trust_state === "ignored",
     ).length,
   };
+  const providerReady =
+    initial.provider_configured && initial.provider_status === "connected";
 
   return (
     <div className="space-y-6">
@@ -126,21 +129,32 @@ export function AccessControlManager({
             your router or firewall integration.
           </p>
         </div>
-        <Badge variant={initial.provider_configured ? "success" : "secondary"}>
+        <Badge
+          variant={
+            providerReady
+              ? "success"
+              : initial.provider_configured
+                ? "warning"
+                : "secondary"
+          }
+        >
           <Router className="size-3" />
           {initial.provider_name}
         </Badge>
       </div>
 
-      {!initial.provider_configured ? (
+      {!initial.provider_configured || dnsOnlyProvider ? (
         <div className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-4">
           <p className="text-sm font-medium">
-            Router control is not configured
+            {dnsOnlyProvider
+              ? "DNS containment available; router control is not configured"
+              : "Router control is not configured"}
           </p>
           <p className="text-muted-foreground mt-1 text-xs leading-5">
-            {initial.message} Trust, ignore, rename, and profile assignment work
-            locally. Pause, quarantine, and block remain disabled so NetWatch
-            never pretends a network action succeeded.
+            {initial.message}{" "}
+            {dnsOnlyProvider
+              ? "Pause and Block Internet apply an all-domain DNS rule only after NetWatch confirms that device uses Technitium. Direct IP, encrypted DNS, and VPN traffic may bypass it. Full LAN quarantine still requires a compatible router or firewall."
+              : "Trust, ignore, rename, and profile assignment work locally. Pause, quarantine, and block remain disabled so NetWatch never pretends a network action succeeded."}
           </p>
         </div>
       ) : null}
@@ -197,6 +211,8 @@ export function AccessControlManager({
                     device={device}
                     profiles={profiles}
                     capabilities={initial.capabilities}
+                    dnsOnlyProvider={dnsOnlyProvider}
+                    providerReady={providerReady}
                     onChanged={replaceDevice}
                   />
                 ))
@@ -258,11 +274,15 @@ function DeviceAccessRow({
   device,
   profiles,
   capabilities,
+  dnsOnlyProvider,
+  providerReady,
   onChanged,
 }: {
   device: Device;
   profiles: ControlProfile[];
   capabilities: Record<string, boolean>;
+  dnsOnlyProvider: boolean;
+  providerReady: boolean;
   onChanged: (device: Device) => void;
 }) {
   const router = useRouter();
@@ -326,15 +346,17 @@ function DeviceAccessRow({
   const internetCapability = needsResume
     ? "unblock_internet"
     : "block_internet";
-  const canInternetAction = Boolean(capabilities[internetCapability]);
+  const canInternetAction =
+    providerReady && Boolean(capabilities[internetCapability]);
   const canQuarantine = Boolean(
+    providerReady &&
     capabilities[
       device.trust_state === "quarantined"
         ? "release_device"
         : "quarantine_device"
     ],
   );
-  const canBlock = Boolean(capabilities.firewall_rules);
+  const canBlock = providerReady && Boolean(capabilities.firewall_rules);
 
   return (
     <div className="p-4">
@@ -396,9 +418,32 @@ function DeviceAccessRow({
               disabled={working !== null || !canInternetAction}
             >
               <Clock3 />
-              {needsResume ? "Resume Internet" : "Pause 1 hour"}
+              {needsResume
+                ? "Resume Internet"
+                : dnsOnlyProvider
+                  ? "Pause via DNS 1 hour"
+                  : "Pause 1 hour"}
             </Button>
           </span>
+          {!needsResume ? (
+            <ConfirmAction
+              title={`Block Internet for ${deviceDisplayName(device)}?`}
+              description={
+                dnsOnlyProvider
+                  ? "NetWatch will apply a persistent all-domain DNS block after confirming this device uses Technitium. Direct IP, DoH, and VPN traffic can bypass DNS-only containment."
+                  : "NetWatch will request a persistent Internet block through the configured network provider."
+              }
+              actionLabel={dnsOnlyProvider ? "Block via DNS" : "Block Internet"}
+              destructive
+              disabled={
+                working !== null ||
+                !providerReady ||
+                !capabilities.block_internet
+              }
+              disabledReason="A compatible DNS, router, or firewall provider is required"
+              onConfirm={() => act("block-internet")}
+            />
+          ) : null}
           <ConfirmAction
             title={
               device.trust_state === "quarantined"
@@ -408,7 +453,7 @@ function DeviceAccessRow({
             description={
               device.trust_state === "quarantined"
                 ? "The router will restore the access allowed by its release policy."
-                : "A compatible router will restrict Internet and LAN access according to its quarantine policy."
+                : "A compatible router or firewall will restrict Internet and LAN access. DNS-only containment cannot provide LAN quarantine."
             }
             actionLabel={
               device.trust_state === "quarantined" ? "Release" : "Quarantine"

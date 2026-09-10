@@ -21,6 +21,7 @@ class DNSCapability(StrEnum):
     FILTER_LISTS = "filter_lists"
     DNS_ENFORCEMENT = "dns_enforcement"
     TRAFFIC_BYTES = "traffic_bytes"
+    DNS_CONTAINMENT = "dns_containment"
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +33,14 @@ class DNSQueryRecord:
     status: str
     blocked: bool
     reason: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class DNSContainmentPreflight:
+    client: str
+    ready: bool
+    evidence_count: int
+    message: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,6 +126,24 @@ class DNSControlProvider(ABC):
 
     async def statistics(self) -> dict[str, object]:
         self.require(DNSCapability.STATISTICS)
+        raise NotImplementedError
+
+    async def preflight_client_containment(
+        self, client: str, *, max_age_seconds: int = 300
+    ) -> DNSContainmentPreflight:
+        self.require(DNSCapability.DNS_CONTAINMENT)
+        raise NotImplementedError
+
+    async def contain_client_dns(self, client: str) -> str:
+        self.require(DNSCapability.DNS_CONTAINMENT)
+        raise NotImplementedError
+
+    async def release_client_dns(self, client: str) -> bool:
+        self.require(DNSCapability.DNS_CONTAINMENT)
+        raise NotImplementedError
+
+    async def clear_client_dns_containments(self) -> int:
+        self.require(DNSCapability.DNS_CONTAINMENT)
         raise NotImplementedError
 
 

@@ -6,7 +6,11 @@ from services.providers.dns import (
     TechnitiumDNSProvider,
     UnconfiguredDNSProvider,
 )
-from services.providers.network import GenericReadOnlyProvider, NetworkControlProvider
+from services.providers.network import (
+    DNSContainmentNetworkProvider,
+    GenericReadOnlyProvider,
+    NetworkControlProvider,
+)
 
 
 class ProviderKind(StrEnum):
@@ -36,15 +40,33 @@ class ProviderRegistry:
         *,
         network_cidr: str,
     ) -> None:
-        self.dns = TechnitiumDNSProvider(
+        provider = TechnitiumDNSProvider(
             server_url,
             username,
             password,
             network_cidr=network_cidr,
         )
+        self.dns = provider
+        if self.network.provider_id in {"monitoring_only", "technitium_dns_containment"}:
+            self.network = DNSContainmentNetworkProvider(provider)
 
     def clear_dns(self) -> None:
+        if self.network.provider_id == "technitium_dns_containment":
+            self.network = GenericReadOnlyProvider()
         self.dns = UnconfiguredDNSProvider()
+
+    def configure_network(self, provider: NetworkControlProvider) -> None:
+        self.network = provider
+
+    def clear_network(self) -> None:
+        if self.dns.provider_id == "technitium_dns":
+            self.network = DNSContainmentNetworkProvider(self.dns)
+        else:
+            self.network = GenericReadOnlyProvider()
+
+    def update_network_scope(self, network_cidr: str) -> None:
+        if isinstance(self.dns, TechnitiumDNSProvider):
+            self.dns.set_network_cidr(network_cidr)
 
     def descriptors(self) -> list[ProviderDescriptor]:
         return [

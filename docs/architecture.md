@@ -15,6 +15,7 @@ flowchart LR
     Control --> NetworkProvider[NetworkControlProvider]
     DNSActivity --> DNSProvider
     DNSProvider --> Technitium[Technitium DNS Server]
+    NetworkProvider --> DNSFallback[Technitium DNS-only containment]
     NetworkProvider --> Fallback[Generic monitoring-only provider]
     API <--> DB[(SQLite / PostgreSQL)]
     Monitor <--> DB
@@ -34,6 +35,13 @@ flowchart LR
 
 The scanner only accepts the configured private subnet. Platform discovery implementations sit behind an adapter interface because ARP and ICMP availability differs between Windows, Linux, macOS, and container networking.
 
+On Docker Desktop for Windows, the optional NetWatch host sensor runs as the signed-in user and
+binds to loopback only. The backend authenticates to it through `host.docker.internal`. The sensor
+derives the active private subnet from the Windows default route, rejects any different scan scope,
+and returns normalized results through the same discovery adapter interface. This avoids treating
+Docker's virtual subnet as the physical LAN and allows device identity to follow a MAC address when
+DHCP changes its IP.
+
 DNS activity is accepted only from a configured provider and is associated with an inventory device by local client IP. Unmatched provider clients are not attributed to a person or device. Domain classification is an inference and never represents decrypted page content or exact usage time.
 
-Control operations follow capability checks before changing application state. Technitium can enforce managed global and per-client DNS policy groups and supply query history. The default network provider is deliberately read-only: pause, block, and quarantine actions stay disabled until a legitimate router/firewall adapter confirms that capability. Provider credentials are encrypted at rest and omitted from API responses.
+Control operations follow capability checks before changing application state. Technitium can enforce managed global and per-client DNS policy groups, provide query history, and apply an all-domain DNS containment group only after recent per-client evidence. That fallback advertises Internet block/release only and explicitly remains bypassable by direct IP, encrypted DNS, or VPN. LAN quarantine and firewall controls stay disabled until a legitimate router/firewall adapter confirms them. Provider credentials are encrypted at rest and omitted from API responses.

@@ -1,5 +1,6 @@
 export interface NetWatchSettings {
   subnet: string;
+  auto_detect_network: boolean;
   scan_interval: number;
   scan_concurrency: number;
   monitoring_enabled: boolean;

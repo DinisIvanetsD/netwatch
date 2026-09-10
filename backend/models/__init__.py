@@ -1,5 +1,6 @@
 from models.control import AccessAudit, AccessSchedule, ControlProfile, DomainRule, FilterList
 from models.device import Device, DeviceSource, DeviceStatus
+from models.device_address import DeviceAddressHistory
 from models.event import Event, EventSeverity, EventType
 from models.integration import Integration
 from models.internet_activity import InternetActivity
@@ -18,6 +19,7 @@ __all__ = [
     "DeviceMetric",
     "DeviceSource",
     "DeviceStatus",
+    "DeviceAddressHistory",
     "DomainRule",
     "Event",
     "EventSeverity",

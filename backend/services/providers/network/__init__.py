@@ -4,6 +4,10 @@ from services.providers.network.base import (
     NetworkControlProvider,
     NetworkControlResult,
 )
+from services.providers.network.dns_containment import (
+    DNSContainmentNetworkProvider,
+    TechnitiumDNSContainmentProvider,
+)
 from services.providers.network.generic import GenericReadOnlyProvider
 
 __all__ = [
@@ -12,4 +16,6 @@ __all__ = [
     "NetworkClient",
     "NetworkControlProvider",
     "NetworkControlResult",
+    "DNSContainmentNetworkProvider",
+    "TechnitiumDNSContainmentProvider",
 ]

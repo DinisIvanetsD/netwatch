@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
 from models.control import DomainRule
-from models.device import Device, DeviceSource
+from models.device import Device, DeviceSource, DeviceStatus
 from services.providers.common import CapabilityUnavailableError
 from services.providers.dns import DNSCapability, DomainRuleRequest
 from services.providers.registry import provider_registry
@@ -29,6 +29,8 @@ async def _rule_clients(
                 Device.id == rule.scope_id,
                 Device.source == source,
                 Device.network_cidr == settings.netwatch_subnet,
+                Device.network_id == settings.netwatch_network_id,
+                Device.status != DeviceStatus.OFFLINE,
             )
         )
         return (device.ip_address,) if device else ()
@@ -41,6 +43,8 @@ async def _rule_clients(
                         Device.profile_id == rule.scope_id,
                         Device.source == source,
                         Device.network_cidr == settings.netwatch_subnet,
+                        Device.network_id == settings.netwatch_network_id,
+                        Device.status != DeviceStatus.OFFLINE,
                     )
                     .order_by(Device.ip_address)
                 )
@@ -79,13 +83,17 @@ async def enforce_domain_rule(
     provider = provider_registry.dns
     required = DNSCapability.CLIENT_RULES if clients is not None else DNSCapability.DOMAIN_BLOCKING
     if clients == ():
-        if rule.provider_reference and rule.enforcement_status == "active":
+        # Keep retrying cleanup for any retained provider reference, including
+        # rules that previously entered the error state. Otherwise a transient
+        # provider outage could leave an external block orphaned forever.
+        if rule.provider_reference:
             try:
                 await provider.remove_managed_domain_rule(rule.provider_reference)
             except Exception as error:
                 rule.enforcement_status = "error"
                 rule.enforcement_error = str(error)[:300]
                 return
+            rule.provider_reference = None
         rule.provider_rule = None
         rule.enforcement_status = "pending"
         rule.enforcement_error = "Assign at least one device before this scoped rule can apply."
@@ -174,6 +182,7 @@ async def reconcile_device_rules(
             Device.id == device_id,
             Device.source == source,
             Device.network_cidr == settings.netwatch_subnet,
+            Device.network_id == settings.netwatch_network_id,
         )
     )
     profile_ids = [device.profile_id] if device and device.profile_id else []
