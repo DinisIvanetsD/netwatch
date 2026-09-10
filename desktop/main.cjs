@@ -26,6 +26,25 @@ function loadEnv(file) {
   }));
 }
 
+function generateFernetKey() {
+  // Python's Fernet implementation expects a URL-safe base64 encoding of 32 bytes.
+  return `${crypto.randomBytes(32).toString("base64url")}=`;
+}
+
+function isValidFernetKey(value) {
+  return typeof value === "string"
+    && /^[A-Za-z0-9_-]{43}=$/.test(value)
+    && Buffer.from(value, "base64").length === 32;
+}
+
+function writeEnv(file, values) {
+  writeFileSync(
+    file,
+    Object.entries(values).map(([key, value]) => `${key}=${value}`).join("\n"),
+    { encoding: "utf8", mode: 0o600 },
+  );
+}
+
 function prepareConfig() {
   if (!app.isPackaged) {
     return { ...defaults, ...loadEnv(path.join(__dirname, ".env")) };
@@ -37,23 +56,24 @@ function prepareConfig() {
   const databasePath = path.join(dataDirectory, "netwatch.db").replaceAll("\\", "/");
   const file = path.join(userData, "config.env");
   if (!existsSync(file)) {
-    const secret = crypto.randomBytes(32).toString("base64url");
-    writeFileSync(
-      file,
-      [
-        "NETWATCH_ENV=development",
-        "NETWATCH_SUBNET=192.168.1.0/24",
-        "AUTO_DETECT_NETWORK=true",
-        "NETWATCH_HOST_SENSOR_URL=http://127.0.0.1:8765",
-        `DATABASE_URL=sqlite+aiosqlite:///${databasePath}`,
-        `NETWATCH_SECRET_KEY=${secret}`,
-        "CORS_ORIGINS=http://127.0.0.1:3000,http://localhost:3000",
-        "ALLOWED_HOSTS=localhost,127.0.0.1",
-      ].join("\n"),
-      { encoding: "utf8", mode: 0o600 },
-    );
+    writeEnv(file, {
+      NETWATCH_ENV: "development",
+      NETWATCH_SUBNET: "192.168.1.0/24",
+      AUTO_DETECT_NETWORK: "true",
+      NETWATCH_HOST_SENSOR_URL: "http://127.0.0.1:8765",
+      DATABASE_URL: `sqlite+aiosqlite:///${databasePath}`,
+      NETWATCH_SECRET_KEY: generateFernetKey(),
+      CORS_ORIGINS: "http://127.0.0.1:3000,http://localhost:3000",
+      ALLOWED_HOSTS: "localhost,127.0.0.1",
+    });
   }
   const loaded = loadEnv(file);
+  if (!isValidFernetKey(loaded.NETWATCH_SECRET_KEY)) {
+    // Older builds generated an unpadded key. It cannot decrypt credentials, so
+    // rotate it before any integration attempts and keep the file private.
+    loaded.NETWATCH_SECRET_KEY = generateFernetKey();
+    writeEnv(file, loaded);
+  }
   return {
     ...defaults,
     ...loaded,

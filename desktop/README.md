@@ -30,4 +30,12 @@ The generated installer keeps the SQLite database, application data, and encrypt
 
 The installer can operate without Docker. Docker/Technitium remains optional for discovery and monitoring, but DNS activity and DNS-based blocking require a reachable Technitium server. Full router blocking requires an OpenWrt or OPNsense API; a NOS/Hitron device without a supported API remains manual.
 
-Technitium/Docker is intentionally not managed by this shell. Technitium and router APIs remain separate integrations configured by the backend; the local dashboard and core monitoring can still run without them.
+Technitium/Docker is intentionally not managed by this shell. For a Windows-local Technitium
+installation, use `http://127.0.0.1:5380` in **Settings → Technitium DNS Server**, enter the
+current administrator credentials, select DNS port `53`, save, test the connection, and run a
+scan. The router must advertise the Windows PC's LAN address as DNS for other devices to appear
+in DNS activity. Mobile hotspots and ISP routers that do not expose DHCP/DNS settings cannot be
+controlled by the desktop app.
+
+The shell creates a valid Fernet key in the per-user `config.env`. It also repairs the invalid
+unpadded key created by early development builds before saving encrypted provider credentials.

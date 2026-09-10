@@ -78,7 +78,10 @@ class TechnitiumDNSProvider(DNSControlProvider):
     ) -> dict[str, Any]:
         await validate_local_destination(self.server_url)
         owns_client = self._client is None
-        client = self._client or httpx.AsyncClient(timeout=httpx.Timeout(8.0, connect=3.0))
+        # App-store installs can download a provider app before returning. Keep
+        # connection failures quick, but allow that bounded local operation to
+        # finish instead of marking a healthy Technitium server as disconnected.
+        client = self._client or httpx.AsyncClient(timeout=httpx.Timeout(60.0, connect=5.0))
         headers = {"Accept": "application/json"}
         if token:
             headers["Authorization"] = f"Bearer {token}"
