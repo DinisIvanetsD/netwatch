@@ -1,0 +1,347 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-12T22:51:58.2648784Z",
+  "title": "Design System: NetWatch",
+  "extensions": {
+    "colorMeta": {
+      "signal-blue": {
+        "role": "primary",
+        "displayName": "Signal Blue",
+        "canonical": "oklch(0.7 0.14 246)",
+        "tonalRamp": [
+          "oklch(0.18 0.14 246)",
+          "oklch(0.28 0.14 246)",
+          "oklch(0.38 0.14 246)",
+          "oklch(0.48 0.14 246)",
+          "oklch(0.58 0.14 246)",
+          "oklch(0.70 0.14 246)",
+          "oklch(0.82 0.12 246)",
+          "oklch(0.93 0.06 246)"
+        ]
+      },
+      "night-field": {
+        "role": "neutral",
+        "displayName": "Night Field",
+        "canonical": "oklch(0.14 0.012 264)",
+        "tonalRamp": [
+          "oklch(0.08 0.012 264)",
+          "oklch(0.14 0.012 264)",
+          "oklch(0.22 0.012 264)",
+          "oklch(0.32 0.012 264)",
+          "oklch(0.44 0.012 264)",
+          "oklch(0.58 0.012 264)",
+          "oklch(0.76 0.008 264)",
+          "oklch(0.94 0.004 264)"
+        ]
+      },
+      "panel-slate": {
+        "role": "neutral",
+        "displayName": "Panel Slate",
+        "canonical": "oklch(0.175 0.012 264)",
+        "tonalRamp": [
+          "oklch(0.10 0.012 264)",
+          "oklch(0.175 0.012 264)",
+          "oklch(0.25 0.012 264)",
+          "oklch(0.35 0.012 264)",
+          "oklch(0.47 0.012 264)",
+          "oklch(0.61 0.012 264)",
+          "oklch(0.78 0.008 264)",
+          "oklch(0.95 0.004 264)"
+        ]
+      },
+      "quiet-slate": {
+        "role": "neutral",
+        "displayName": "Quiet Slate",
+        "canonical": "oklch(0.22 0.012 264)",
+        "tonalRamp": [
+          "oklch(0.12 0.012 264)",
+          "oklch(0.22 0.012 264)",
+          "oklch(0.31 0.012 264)",
+          "oklch(0.41 0.012 264)",
+          "oklch(0.52 0.012 264)",
+          "oklch(0.65 0.012 264)",
+          "oklch(0.80 0.008 264)",
+          "oklch(0.95 0.004 264)"
+        ]
+      },
+      "signal-text": {
+        "role": "neutral",
+        "displayName": "Signal Text",
+        "canonical": "oklch(0.95 0.004 264)",
+        "tonalRamp": [
+          "oklch(0.20 0.004 264)",
+          "oklch(0.30 0.004 264)",
+          "oklch(0.42 0.004 264)",
+          "oklch(0.54 0.004 264)",
+          "oklch(0.66 0.004 264)",
+          "oklch(0.76 0.004 264)",
+          "oklch(0.86 0.004 264)",
+          "oklch(0.95 0.004 264)"
+        ]
+      },
+      "muted-text": {
+        "role": "neutral",
+        "displayName": "Muted Text",
+        "canonical": "oklch(0.64 0.012 264)",
+        "tonalRamp": [
+          "oklch(0.16 0.012 264)",
+          "oklch(0.24 0.012 264)",
+          "oklch(0.34 0.012 264)",
+          "oklch(0.44 0.012 264)",
+          "oklch(0.54 0.012 264)",
+          "oklch(0.64 0.012 264)",
+          "oklch(0.78 0.008 264)",
+          "oklch(0.93 0.004 264)"
+        ]
+      },
+      "hairline-border": {
+        "role": "neutral",
+        "displayName": "Hairline Border",
+        "canonical": "oklch(0.265 0.013 264)",
+        "tonalRamp": [
+          "oklch(0.14 0.013 264)",
+          "oklch(0.265 0.013 264)",
+          "oklch(0.36 0.013 264)",
+          "oklch(0.46 0.013 264)",
+          "oklch(0.58 0.013 264)",
+          "oklch(0.70 0.013 264)",
+          "oklch(0.82 0.009 264)",
+          "oklch(0.94 0.004 264)"
+        ]
+      },
+      "active-surface": {
+        "role": "primary",
+        "displayName": "Active Surface",
+        "canonical": "oklch(0.24 0.025 250)",
+        "tonalRamp": [
+          "oklch(0.12 0.025 250)",
+          "oklch(0.24 0.025 250)",
+          "oklch(0.34 0.025 250)",
+          "oklch(0.44 0.025 250)",
+          "oklch(0.56 0.025 250)",
+          "oklch(0.68 0.025 250)",
+          "oklch(0.80 0.02 250)",
+          "oklch(0.93 0.01 250)"
+        ]
+      },
+      "destructive": {
+        "role": "tertiary",
+        "displayName": "Destructive Red",
+        "canonical": "oklch(0.65 0.2 25)",
+        "tonalRamp": [
+          "oklch(0.18 0.2 25)",
+          "oklch(0.28 0.2 25)",
+          "oklch(0.38 0.2 25)",
+          "oklch(0.48 0.2 25)",
+          "oklch(0.58 0.2 25)",
+          "oklch(0.68 0.2 25)",
+          "oklch(0.80 0.16 25)",
+          "oklch(0.93 0.08 25)"
+        ]
+      },
+      "status-success": {
+        "role": "secondary",
+        "displayName": "Status Green",
+        "canonical": "#34d399",
+        "tonalRamp": [
+          "#064e3b",
+          "#065f46",
+          "#047857",
+          "#059669",
+          "#10b981",
+          "#34d399",
+          "#6ee7b7",
+          "#d1fae5"
+        ]
+      },
+      "status-warning": {
+        "role": "tertiary",
+        "displayName": "Status Amber",
+        "canonical": "#fcd34d",
+        "tonalRamp": [
+          "#78350f",
+          "#92400e",
+          "#b45309",
+          "#d97706",
+          "#f59e0b",
+          "#fcd34d",
+          "#fde68a",
+          "#fef3c7"
+        ]
+      },
+      "status-info": {
+        "role": "primary",
+        "displayName": "Status Sky",
+        "canonical": "#7dd3fc",
+        "tonalRamp": [
+          "#0c4a6e",
+          "#075985",
+          "#0369a1",
+          "#0284c7",
+          "#0ea5e9",
+          "#38bdf8",
+          "#7dd3fc",
+          "#e0f2fe"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Operational Headline",
+        "purpose": "Page titles and major empty or error states."
+      },
+      "title": {
+        "displayName": "Section Title",
+        "purpose": "Card titles, device names, and section headings."
+      },
+      "body": {
+        "displayName": "Interface Body",
+        "purpose": "Descriptions, table content, and operational copy."
+      },
+      "label": {
+        "displayName": "Signal Label",
+        "purpose": "Metric labels, navigation group labels, and compact metadata headings."
+      },
+      "technical": {
+        "displayName": "Technical Evidence",
+        "purpose": "IP addresses, MAC addresses, ports, timestamps, and machine-oriented values."
+      }
+    },
+    "shadows": [
+      {
+        "name": "overlay-separation",
+        "value": "0 20px 60px rgba(0, 0, 0, 0.28)",
+        "purpose": "Separates dialogs and high-priority floating surfaces from the dashboard."
+      },
+      {
+        "name": "tooltip-separation",
+        "value": "0 10px 24px rgba(0, 0, 0, 0.24)",
+        "purpose": "Separates explanatory hover and focus content without lifting resting cards."
+      }
+    ],
+    "motion": [
+      {
+        "name": "standard-transition",
+        "value": "150ms cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "Brief color, opacity, and focus-state transitions."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "prefers-reduced-motion: reduce",
+        "purpose": "Removes non-essential animation and shortens transitions for users who request reduced motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      },
+      {
+        "name": "xl",
+        "value": "1280px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Decisive actions such as starting a scan or saving a policy.",
+      "html": "<button class=\"ds-btn-primary\" type=\"button\">Scan network</button>",
+      "css": ".ds-btn-primary { background: var(--primary); color: var(--primary-foreground); border: 0; border-radius: 9px; padding: 8px 16px; height: 36px; font: 500 0.875rem/1.5 Geist, ui-sans-serif, system-ui, sans-serif; transition: background 150ms cubic-bezier(0.4, 0, 0.2, 1), color 150ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-btn-primary:hover { background: color-mix(in oklab, var(--primary) 90%, transparent); } .ds-btn-primary:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; } .ds-btn-primary:active { transform: translateY(1px); }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Low-emphasis navigation and utility actions that should not compete with a scan.",
+      "html": "<button class=\"ds-btn-ghost\" type=\"button\">View details</button>",
+      "css": ".ds-btn-ghost { background: transparent; color: var(--muted-foreground); border: 0; border-radius: 9px; padding: 8px 12px; height: 36px; font: 500 0.875rem/1.5 Geist, ui-sans-serif, system-ui, sans-serif; transition: background 150ms cubic-bezier(0.4, 0, 0.2, 1), color 150ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-btn-ghost:hover { background: var(--accent); color: var(--foreground); } .ds-btn-ghost:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }"
+    },
+    {
+      "name": "Technical Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Compact field for subnet, domain, search, and configuration values.",
+      "html": "<input class=\"ds-input\" aria-label=\"Monitored subnet\" placeholder=\"192.168.1.0/24\" />",
+      "css": ".ds-input { background: var(--background); color: var(--foreground); border: 1px solid var(--input); border-radius: 9px; padding: 4px 12px; height: 36px; width: 100%; font: 400 0.875rem/1.5 Geist, ui-sans-serif, system-ui, sans-serif; transition: border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-input::placeholder { color: var(--muted-foreground); } .ds-input:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; border-color: var(--ring); }"
+    },
+    {
+      "name": "Panel Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Flat resting container for one operational topic, metric group, or workflow step.",
+      "html": "<section class=\"ds-card\"><h3>Network readiness</h3><p>Sensor connected and collecting evidence.</p></section>",
+      "css": ".ds-card { background: var(--card); color: var(--card-foreground); border: 1px solid var(--border); border-radius: 10px; padding: 20px; } .ds-card h3 { margin: 0; font: 600 1rem/1.5 Geist, ui-sans-serif, system-ui, sans-serif; letter-spacing: -0.01em; } .ds-card p { margin: 6px 0 0; color: var(--muted-foreground); font: 400 0.875rem/1.5 Geist, ui-sans-serif, system-ui, sans-serif; }"
+    },
+    {
+      "name": "Status Chip",
+      "kind": "chip",
+      "refersTo": "status-chip",
+      "description": "Compact status or severity label that pairs semantic color with readable text.",
+      "html": "<span class=\"ds-chip ds-chip-success\"><span aria-hidden=\"true\">●</span> Online</span>",
+      "css": ".ds-chip { display: inline-flex; align-items: center; gap: 6px; width: fit-content; border: 1px solid var(--border); border-radius: 9999px; padding: 4px 10px; font: 600 0.6875rem/1.4 Geist, ui-sans-serif, system-ui, sans-serif; letter-spacing: 0.02em; } .ds-chip-success { border-color: color-mix(in oklab, #34d399 25%, transparent); background: color-mix(in oklab, #34d399 10%, transparent); color: #34d399; } .ds-chip:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }"
+    },
+    {
+      "name": "Navigation Item",
+      "kind": "nav",
+      "refersTo": "active-surface",
+      "description": "Compact rail item that keeps location visible while preserving room for evidence.",
+      "html": "<a class=\"ds-nav-item ds-nav-item-active\" href=\"/devices\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\"><rect x=\"3\" y=\"4\" width=\"18\" height=\"14\" rx=\"2\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/><path d=\"M8 21h8M12 18v3\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"/></svg><span>Devices</span></a>",
+      "css": ".ds-nav-item { display: flex; align-items: center; gap: 12px; height: 36px; padding: 0 12px; border-radius: 6px; color: var(--muted-foreground); text-decoration: none; font: 400 0.875rem/1.5 Geist, ui-sans-serif, system-ui, sans-serif; transition: background 150ms cubic-bezier(0.4, 0, 0.2, 1), color 150ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-nav-item svg { width: 16px; height: 16px; } .ds-nav-item:hover { background: color-mix(in oklab, var(--accent) 60%, transparent); color: var(--foreground); } .ds-nav-item-active { background: var(--accent); color: var(--foreground); } .ds-nav-item:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Operational Radar",
+    "overview": "NetWatch presents network state as a focused control surface for quick detection and response. The radar metaphor is about signal quality, not science-fiction decoration: the interface should tell the administrator what changed, where it happened, and what action is actually possible.\n\nThe incumbent system uses a dark neutral field with a cool blue signal accent, restrained tonal layering, and compact operational modules. Typography stays quiet and technical: Geist supports reading and decisions, while Geist Mono identifies IP addresses, MAC addresses, ports, timestamps, and other evidence. The voice is direct and incident-oriented, preferring evidence and next action over spectacle.\n\nThe visual system deliberately avoids hacker theatre, Matrix-style backgrounds, neon green dominance, decorative gradients, excessive glow, fake terminal text, and animation that competes with network state.",
+    "keyCharacteristics": [
+      "Radar-like prioritization of live network signals.",
+      "Cool blue action accent used with intention.",
+      "Flat resting surfaces with restrained tonal layers.",
+      "Direct copy that leads with evidence and consequence.",
+      "Technical identifiers set in a selective monospace voice."
+    ],
+    "rules": [
+      {
+        "name": "The Signal Rarity Rule",
+        "body": "Reserve the primary blue accent for actions, active state, focus, and meaningful network signal; the interface should remain calm when nothing needs attention.",
+        "section": "colors"
+      },
+      {
+        "name": "The Evidence Before Drama Rule",
+        "body": "Let type hierarchy expose what changed and what can be done; do not enlarge or decorate a value merely to make the screen feel more active.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat-By-Default Rule",
+        "body": "Resting cards and panels use border and tonal contrast; elevation appears only when a surface is actually layered above another surface.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do reserve the primary blue accent for meaningful actions, active navigation, focus, and live network signal.",
+      "Do use Geist Mono selectively for IP addresses, MAC addresses, ports, timestamps, and other technical identifiers.",
+      "Do pair every status color with text or a shape cue so state remains understandable without color perception.",
+      "Do keep resting surfaces flat and let borders and tonal layers establish structure.",
+      "Do lead incident copy with the observed evidence, affected device, time, and available next action.",
+      "Do preserve generous content grouping while keeping individual rows compact enough to scan."
+    ],
+    "donts": [
+      "Don't use Matrix backgrounds, fake terminal text, neon green dominance, decorative gradients, or gratuitous glow.",
+      "Don't make every card or navigation item blue; signal loses meaning when everything is highlighted.",
+      "Don't use shadows on ordinary resting cards when a border and tonal layer already provide separation.",
+      "Don't communicate severity or device state through color alone.",
+      "Don't invent activity, device identity, topology, or certainty in order to make an empty state look busy.",
+      "Don't expose raw backend errors or turn technical limitations into unexplained dead ends."
+    ]
+  }
+}
