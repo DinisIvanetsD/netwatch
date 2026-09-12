@@ -136,7 +136,7 @@ export default async function DevicesPage({
             <Input
               name="search"
               defaultValue={search}
-              placeholder="Search name, IP, MAC or vendor"
+              placeholder="Search name, owner, hostname, IP or MAC"
               className="ps-9"
               aria-label="Search devices"
             />

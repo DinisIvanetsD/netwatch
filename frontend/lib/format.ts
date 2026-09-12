@@ -44,3 +44,11 @@ export function deviceDisplayName(
   }
   return "Unnamed device";
 }
+
+export function hasAssignedDeviceName(
+  device: Pick<Device, "name" | "hostname" | "ip_address">,
+): boolean {
+  const name = device.name?.trim();
+  const hostname = device.hostname?.trim();
+  return Boolean(name && name !== device.ip_address && name !== hostname);
+}

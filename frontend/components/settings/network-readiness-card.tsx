@@ -125,8 +125,9 @@ export function NetworkReadinessCard({
 
         <p className="text-muted-foreground text-xs leading-5">
           DNS blocking only works for clients that use this DNS server. Full
-          device blocking and LAN quarantine still require a supported OpenWrt,
-          OPNsense, or pfSense firewall integration. A mobile hotspot may not
+          device blocking and LAN quarantine still require a supported OpenWrt
+          or OPNsense firewall integration. pfSense and NOS/Hitron remain manual
+          unless a verified control API is configured. A mobile hotspot may not
           expose the DHCP/DNS controls needed for this setup.
         </p>
       </CardContent>

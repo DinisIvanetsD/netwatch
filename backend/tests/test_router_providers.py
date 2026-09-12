@@ -30,13 +30,25 @@ async def test_openwrt_rule_reference_is_idempotent() -> None:
     provider = OpenWrtProvider("http://127.0.0.1", "root", "secret")
     provider._login = AsyncMock()  # type: ignore[method-assign]
     provider._call = AsyncMock(  # type: ignore[method-assign]
-        return_value={"values": [{".name": "cfg1", "name": "netwatch-aabbccddeeff"}]}
+        side_effect=[
+            {"values": [{".name": "cfg1", "name": "netwatch-aabbccddeeff"}]},
+            {"code": 0},
+        ]
     )
 
     result = await provider.block_internet("aa-bb-cc-dd-ee-ff")
 
     assert result.changed is False
-    provider._call.assert_awaited_once_with("uci", "get", {"config": "firewall", "type": "rule"})
+    assert provider._call.await_args_list[0].args == (
+        "uci",
+        "get",
+        {"config": "firewall", "type": "rule"},
+    )
+    assert provider._call.await_args_list[1].args == (
+        "file",
+        "exec",
+        {"command": "/etc/init.d/firewall", "params": ["reload"], "env": {}},
+    )
 
 
 @pytest.mark.asyncio
@@ -46,14 +58,15 @@ async def test_openwrt_reads_indexed_uci_sections_and_releases_both_rules() -> N
     provider._call = AsyncMock(  # type: ignore[method-assign]
         side_effect=[
             {
-                "values": {
-                    "cfg-internet": {"name": "netwatch-aabbccddeeff"},
-                    "cfg-device": {"name": "netwatch-aabbccddeeff-device"},
-                }
-            },
-            {},
-            {},
-            {},
+                    "values": {
+                        "cfg-internet": {"name": "netwatch-aabbccddeeff"},
+                        "cfg-device": {"name": "netwatch-aabbccddeeff-device"},
+                    }
+                },
+                {},
+                {},
+                {},
+                {"code": 0},
         ]
     )
 
@@ -71,6 +84,11 @@ async def test_openwrt_reads_indexed_uci_sections_and_releases_both_rules() -> N
         {"config": "firewall", "section": "cfg-device"},
     )
     assert provider._call.await_args_list[3].args == ("uci", "commit", {"config": "firewall"})
+    assert provider._call.await_args_list[4].args == (
+        "file",
+        "exec",
+        {"command": "/etc/init.d/firewall", "params": ["reload"], "env": {}},
+    )
 
 
 @pytest.mark.asyncio
@@ -78,7 +96,7 @@ async def test_openwrt_block_device_is_explicitly_all_destinations_firewall_rule
     provider = OpenWrtProvider("http://127.0.0.1", "root", "secret")
     provider._login = AsyncMock()  # type: ignore[method-assign]
     provider._call = AsyncMock(  # type: ignore[method-assign]
-        side_effect=[{"values": []}, {}, {}]
+        side_effect=[{"values": []}, {}, {}, {"code": 0}]
     )
 
     result = await provider.block_device("aa:bb:cc:dd:ee:ff")
@@ -87,6 +105,82 @@ async def test_openwrt_block_device_is_explicitly_all_destinations_firewall_rule
     add_values = provider._call.await_args_list[1].args[2]["values"]
     assert add_values["target"] == "DROP"
     assert "dest" not in add_values
+
+
+@pytest.mark.asyncio
+async def test_openwrt_successfully_reloads_firewall_after_commit() -> None:
+    provider = OpenWrtProvider("http://127.0.0.1", "root", "secret")
+    provider._login = AsyncMock()  # type: ignore[method-assign]
+    provider._call = AsyncMock(  # type: ignore[method-assign]
+        side_effect=[{"values": []}, {}, {}, {"code": 0}]
+    )
+
+    result = await provider.block_internet("aa:bb:cc:dd:ee:ff")
+
+    assert result.changed is True
+    assert provider._call.await_args_list[-1].args == (
+        "file",
+        "exec",
+        {"command": "/etc/init.d/firewall", "params": ["reload"], "env": {}},
+    )
+
+
+@pytest.mark.asyncio
+async def test_openwrt_fails_when_firewall_reload_is_rejected() -> None:
+    provider = OpenWrtProvider("http://127.0.0.1", "root", "secret")
+    provider._login = AsyncMock()  # type: ignore[method-assign]
+    provider._call = AsyncMock(  # type: ignore[method-assign]
+        side_effect=[{"values": []}, {}, {}, RouterProviderError("reload rejected")]
+    )
+
+    with pytest.raises(RouterProviderError, match="reload rejected"):
+        await provider.block_internet("aa:bb:cc:dd:ee:ff")
+
+    assert provider._call.await_args_list[-1].args == (
+        "file",
+        "exec",
+        {"command": "/etc/init.d/firewall", "params": ["reload"], "env": {}},
+    )
+
+
+@pytest.mark.asyncio
+async def test_openwrt_retries_firewall_reload_for_an_existing_rule() -> None:
+    provider = OpenWrtProvider("http://127.0.0.1", "root", "secret")
+    provider._login = AsyncMock()  # type: ignore[method-assign]
+    provider._call = AsyncMock(  # type: ignore[method-assign]
+        side_effect=[
+            {"values": [{".name": "cfg1", "name": "netwatch-aabbccddeeff"}]},
+            RouterProviderError("reload rejected"),
+            {"values": [{".name": "cfg1", "name": "netwatch-aabbccddeeff"}]},
+            {"code": 0},
+        ]
+    )
+
+    with pytest.raises(RouterProviderError, match="reload rejected"):
+        await provider.block_internet("aa:bb:cc:dd:ee:ff")
+
+    result = await provider.block_internet("aa:bb:cc:dd:ee:ff")
+
+    assert result.changed is False
+    assert provider._call.await_args_list[1].args[0:2] == ("file", "exec")
+    assert provider._call.await_args_list[3].args[0:2] == ("file", "exec")
+
+
+@pytest.mark.asyncio
+async def test_openwrt_release_is_idempotent_when_no_managed_rules_exist() -> None:
+    provider = OpenWrtProvider("http://127.0.0.1", "root", "secret")
+    provider._login = AsyncMock()  # type: ignore[method-assign]
+    provider._call = AsyncMock(return_value={"values": []})  # type: ignore[method-assign]
+
+    result = await provider.release_device("aa:bb:cc:dd:ee:ff")
+
+    assert result.changed is False
+    assert len(provider._call.await_args_list) == 1
+    assert provider._call.await_args_list[0].args == (
+        "uci",
+        "get",
+        {"config": "firewall", "type": "rule"},
+    )
 
 
 @pytest.mark.asyncio

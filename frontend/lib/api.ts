@@ -3,7 +3,11 @@ import type { Device, DeviceListResponse, DeviceQuery } from "@/types/device";
 import type { Scan } from "@/types/scan";
 import type { ServiceListResponse } from "@/types/service";
 import type { HistoryClearResult, NetWatchSettings } from "@/types/settings";
-import type { NetworkActivity, NetworkStatus } from "@/types/network";
+import type {
+  NetworkActivity,
+  NetworkProfileList,
+  NetworkStatus,
+} from "@/types/network";
 import type {
   InternetActivityDiagnostics,
   InternetActivityQuery,
@@ -216,6 +220,10 @@ export async function updateAlertSettings(
 
 export async function getNetworkStatus(): Promise<NetworkStatus> {
   return request<NetworkStatus>("/api/network/status");
+}
+
+export async function getNetworkProfiles(): Promise<NetworkProfileList> {
+  return request<NetworkProfileList>("/api/network/profiles");
 }
 
 export async function getReadiness(): Promise<ReadinessResponse> {

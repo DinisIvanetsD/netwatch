@@ -118,11 +118,10 @@ export default async function InternetActivityPage({
             What NetWatch can—and cannot—see
           </p>
           <p className="text-muted-foreground mt-1 text-xs leading-5">
-            NetWatch can report that a device contacted domains such as
-            google.com, youtube.com, or roblox.com when its DNS uses the
-            configured Technitium server. HTTPS keeps search words, exact
-            videos, messages, passwords, and page contents encrypted, so
-            NetWatch does not display or claim to know them.
+            NetWatch reports DNS metadata: a device made a lookup for a domain,
+            and whether the configured DNS policy allowed or blocked it. This
+            does not reveal exact HTTPS searches, videos, messages, passwords,
+            or page contents.
           </p>
         </div>
       </div>
@@ -169,10 +168,21 @@ export default async function InternetActivityPage({
                 ))}
               </ol>
             ) : (
-              <p className="text-muted-foreground mt-2 text-xs">
-                {diagnostics.matched_records} recent records matched to{" "}
-                {diagnostics.matched_devices} current devices.
-              </p>
+              <div className="text-muted-foreground mt-2 space-y-1 text-xs">
+                <p>
+                  {diagnostics.matched_records} recent records matched to{" "}
+                  {diagnostics.matched_devices} current devices.
+                </p>
+                {diagnostics.ambiguous_records ||
+                diagnostics.unmatched_records ? (
+                  <p>
+                    Attribution context: {diagnostics.ambiguous_records}{" "}
+                    ambiguous and {diagnostics.unmatched_records} unmatched
+                    records. Device links are shown only for records matched to
+                    current inventory.
+                  </p>
+                ) : null}
+              </div>
             )}
             {diagnostics.status !== "ready" ? (
               <Button asChild variant="outline" size="sm" className="mt-3">
@@ -311,6 +321,10 @@ export default async function InternetActivityPage({
         <Card className="overflow-hidden">
           <CardHeader>
             <CardTitle>Recent DNS activity</CardTitle>
+            <p className="text-muted-foreground mt-1 text-xs">
+              Each row is an observed DNS lookup. Device attribution depends on
+              the provider record matching current inventory.
+            </p>
           </CardHeader>
           <div className="overflow-x-auto">
             <Table>
@@ -321,6 +335,7 @@ export default async function InternetActivityPage({
                   <TableHead>Domain</TableHead>
                   <TableHead>Inferred service</TableHead>
                   <TableHead>Category</TableHead>
+                  <TableHead>Attribution</TableHead>
                   <TableHead>Result</TableHead>
                 </TableRow>
               </TableHeader>
@@ -334,12 +349,18 @@ export default async function InternetActivityPage({
                       {formatRelativeTime(item.timestamp)}
                     </TableCell>
                     <TableCell>
-                      <Link
-                        href={`/devices/${item.device_id}?tab=internet`}
-                        className="hover:text-primary font-medium"
-                      >
-                        {item.device_name || "Unnamed device"}
-                      </Link>
+                      {item.device_name ? (
+                        <Link
+                          href={`/devices/${item.device_id}?tab=internet`}
+                          className="hover:text-primary font-medium"
+                        >
+                          {item.device_name}
+                        </Link>
+                      ) : (
+                        <span className="text-muted-foreground">
+                          Unknown device
+                        </span>
+                      )}
                       <span className="text-muted-foreground mt-1 block font-mono text-xs">
                         {item.source_ip || "IP unavailable"}
                       </span>
@@ -350,6 +371,23 @@ export default async function InternetActivityPage({
                     <TableCell>{item.service || "Unclassified"}</TableCell>
                     <TableCell className="capitalize">
                       {categoryLabel(item.category)}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-1 text-xs">
+                        <span>
+                          {item.device_name
+                            ? "Inventory match"
+                            : "Unattributed"}
+                        </span>
+                        {item.profile_id ? (
+                          <Link
+                            href="/parental-controls"
+                            className="text-primary hover:underline"
+                          >
+                            Profile controls
+                          </Link>
+                        ) : null}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <Badge variant={item.blocked ? "warning" : "secondary"}>

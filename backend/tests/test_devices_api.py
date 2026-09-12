@@ -387,6 +387,82 @@ async def test_device_inventory_isolated_when_two_networks_share_the_same_cidr(
     assert [item["id"] for item in second_listing.json()["items"]] == [second.id]
 
 
+async def test_network_profiles_keep_current_and_previous_contexts_separate(
+    device_client: TestClient,
+    device_session_factory: async_sessionmaker[AsyncSession],
+    live_device: Device,
+) -> None:
+    now = datetime.now(UTC)
+    async with device_session_factory() as session:
+        session.add_all(
+            [
+                Scan(
+                    subnet=settings.netwatch_subnet,
+                    network_id=settings.netwatch_network_id,
+                    source=DeviceSource.LIVE,
+                    status=ScanStatus.COMPLETED,
+                    devices_found=1,
+                    started_at=now,
+                    finished_at=now,
+                    created_at=now,
+                ),
+                Scan(
+                    subnet="10.42.0.0/24",
+                    network_id="windows:previous-network",
+                    source=DeviceSource.LIVE,
+                    status=ScanStatus.COMPLETED,
+                    devices_found=4,
+                    started_at=now - timedelta(days=1),
+                    finished_at=now - timedelta(days=1),
+                    created_at=now - timedelta(days=1),
+                ),
+            ]
+        )
+        session.add(
+            Device(
+                name="Previous device",
+                ip_address="10.42.0.20",
+                status=DeviceStatus.OFFLINE,
+                source=DeviceSource.LIVE,
+                network_cidr="10.42.0.0/24",
+                network_id="windows:previous-network",
+                first_seen=now - timedelta(days=1),
+                last_seen=now - timedelta(days=1),
+            )
+        )
+        session.add(
+            Device(
+                name="Retained device without a scan",
+                ip_address="10.77.0.20",
+                status=DeviceStatus.OFFLINE,
+                source=DeviceSource.LIVE,
+                network_cidr="10.77.0.0/24",
+                network_id="windows:retained-only",
+                first_seen=now - timedelta(days=2),
+                last_seen=now - timedelta(days=2),
+            )
+        )
+        await session.commit()
+
+    response = device_client.get("/api/network/profiles")
+
+    assert response.status_code == 200
+    profiles = response.json()["items"]
+    assert profiles[0]["is_current"] is True
+    assert profiles[0]["subnet"] == settings.netwatch_subnet
+    assert profiles[0]["devices_known"] == 1
+    assert profiles[0]["scan_count"] == 1
+    previous = next(profile for profile in profiles if not profile["is_current"])
+    assert previous["subnet"] == "10.42.0.0/24"
+    assert previous["devices_known"] == 1
+    assert previous["scan_count"] == 1
+    retained = next(
+        profile for profile in profiles if profile["network_id"] == "windows:retained-only"
+    )
+    assert retained["devices_known"] == 1
+    assert retained["scan_count"] == 0
+
+
 async def test_clear_history_preserves_inventory_and_services(
     device_client: TestClient,
     device_session_factory: async_sessionmaker[AsyncSession],

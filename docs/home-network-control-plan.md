@@ -18,7 +18,8 @@ router/firewall control through documented provider APIs. It does not decrypt HT
 ## Current provider status
 
 - OpenWrt: authenticated ubus control, MAC-based managed rules, Internet block/release, and
-  persistent device rule block/release.
+  persistent device rule block/release. The configured rpcd account also needs permission to
+  execute the fixed `/etc/init.d/firewall reload` command through `rpcd-mod-file`.
 - OPNsense: authenticated REST firewall rules, IP-based managed rules, and explicit apply/remove
   confirmation. Standard OPNsense pf rules do not provide MAC matching, so NetWatch validates
   the current IP owner before every control operation.

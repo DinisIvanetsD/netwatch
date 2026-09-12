@@ -16,6 +16,7 @@ import {
   deviceDisplayName,
   formatLatency,
   formatRelativeTime,
+  hasAssignedDeviceName,
 } from "@/lib/format";
 import type { Device, DeviceQuery } from "@/types/device";
 
@@ -113,7 +114,7 @@ export function DeviceTable({
                 query={query}
               />
             </TableHead>
-            <TableHead>
+            <TableHead className="hidden md:table-cell">
               <SortHeading
                 label="IP Address"
                 field="ip_address"
@@ -122,9 +123,13 @@ export function DeviceTable({
                 query={query}
               />
             </TableHead>
-            <TableHead scope="col">MAC Address</TableHead>
-            <TableHead scope="col">Vendor</TableHead>
-            <TableHead scope="col">
+            <TableHead scope="col" className="hidden md:table-cell">
+              MAC Address
+            </TableHead>
+            <TableHead scope="col" className="hidden lg:table-cell">
+              Vendor
+            </TableHead>
+            <TableHead scope="col" className="hidden lg:table-cell">
               <SortHeading
                 label="Latency"
                 field="latency_ms"
@@ -133,8 +138,10 @@ export function DeviceTable({
                 query={query}
               />
             </TableHead>
-            <TableHead scope="col">Services</TableHead>
-            <TableHead scope="col">
+            <TableHead scope="col" className="hidden xl:table-cell">
+              Services
+            </TableHead>
+            <TableHead scope="col" className="hidden lg:table-cell">
               <SortHeading
                 label="Last Seen"
                 field="last_seen"
@@ -147,50 +154,63 @@ export function DeviceTable({
         </TableHeader>
         <TableBody>
           {devices.map((device) => (
-            <TableRow key={device.id}>
+            <TableRow key={device.id} className="align-top">
               <TableCell>
                 <DeviceStatusBadge status={device.status} />
               </TableCell>
               <TableCell>
                 <Link
-                  href={`/devices/${device.id}${deviceDisplayName(device) === "Unnamed device" ? "?tab=access" : ""}`}
+                  href={`/devices/${device.id}${hasAssignedDeviceName(device) ? "" : "?tab=access"}`}
                   className="group block"
                 >
                   <span className="text-foreground group-hover:text-primary font-medium">
                     {deviceDisplayName(device)}
                   </span>
+                  <span className="text-muted-foreground mt-1 block text-xs">
+                    {device.owner ?? "Owner not assigned"} ·{" "}
+                    {device.device_type ?? "Type unknown"}
+                  </span>
+                  <span className="text-muted-foreground mt-0.5 block text-xs">
+                    {device.hostname ?? "Hostname unavailable"}
+                  </span>
+                  {!hasAssignedDeviceName(device) ? (
+                    <span className="text-primary mt-1 block text-[10px] font-semibold tracking-wider uppercase">
+                      Name this device
+                    </span>
+                  ) : null}
                   {device.is_gateway ? (
                     <span className="text-muted-foreground mt-0.5 block text-[10px] tracking-wider uppercase">
                       Gateway
                     </span>
-                  ) : deviceDisplayName(device) === "Unnamed device" ? (
-                    <span className="text-primary mt-0.5 block text-[10px] tracking-wider uppercase">
-                      Set name and owner
-                    </span>
                   ) : null}
-                  {device.owner ? (
-                    <span className="text-muted-foreground mt-0.5 block text-xs">
-                      Owner: {device.owner}
-                    </span>
-                  ) : null}
+                  <span className="text-muted-foreground mt-1 block font-mono text-[11px] md:hidden">
+                    {device.ip_address} ·{" "}
+                    {device.mac_address ?? "MAC unavailable"}
+                  </span>
                 </Link>
               </TableCell>
-              <TableCell className="font-mono text-xs">
+              <TableCell className="hidden font-mono text-xs md:table-cell">
                 {device.ip_address}
               </TableCell>
-              <TableCell className="text-muted-foreground font-mono text-xs">
+              <TableCell className="text-muted-foreground hidden font-mono text-xs md:table-cell">
                 {device.mac_address ?? "—"}
               </TableCell>
-              <TableCell>{device.vendor ?? "Unknown"}</TableCell>
-              <TableCell className="font-mono text-xs">
+              <TableCell className="hidden lg:table-cell">
+                {device.vendor ?? "Unknown"}
+              </TableCell>
+              <TableCell className="hidden font-mono text-xs lg:table-cell">
                 {formatLatency(device.latency_ms)}
               </TableCell>
-              <TableCell className="font-mono text-xs">
+              <TableCell className="hidden font-mono text-xs xl:table-cell">
                 {device.service_ports.length
                   ? device.service_ports.join(", ")
                   : "—"}
               </TableCell>
-              <TableCell title={new Date(device.last_seen).toLocaleString()}>
+              <TableCell
+                className="hidden lg:table-cell"
+                title={new Date(device.last_seen).toLocaleString()}
+                suppressHydrationWarning
+              >
                 {formatRelativeTime(device.last_seen)}
               </TableCell>
             </TableRow>

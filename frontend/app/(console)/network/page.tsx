@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   getDevices,
+  getNetworkProfiles,
   getNetworkStatus,
   getProviderCapabilities,
 } from "@/lib/api";
@@ -17,10 +18,11 @@ export const metadata = { title: "Network" };
 export const dynamic = "force-dynamic";
 
 export default async function NetworkPage() {
-  const [network, devices, providers] = await Promise.all([
+  const [network, devices, providers, profiles] = await Promise.all([
     getNetworkStatus(),
     getDevices({ perPage: 100, sortBy: "ip_address", sortOrder: "asc" }),
     getProviderCapabilities(),
+    getNetworkProfiles(),
   ]);
   const gateway = devices.items.find((device) => device.is_gateway);
   const peers = devices.items.filter((device) => !device.is_gateway);
@@ -68,6 +70,62 @@ export default async function NetworkPage() {
           </p>
         </div>
       )}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle>Network profiles</CardTitle>
+              <p className="text-muted-foreground mt-1 text-xs leading-5">
+                Inventories stay separated when this computer moves between
+                Wi-Fi, hotspots, or physical LANs.
+              </p>
+            </div>
+            <Badge variant="secondary">
+              {profiles.items.length} context
+              {profiles.items.length === 1 ? "" : "s"}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {profiles.items.map((profile) => (
+            <div
+              key={`${profile.subnet}-${profile.network_id}`}
+              className={
+                profile.is_current
+                  ? "border-primary/30 bg-primary/5 rounded-lg border p-3"
+                  : "border-border bg-muted/20 rounded-lg border p-3"
+              }
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">{profile.label}</p>
+                  <p className="text-muted-foreground mt-1 font-mono text-xs">
+                    {profile.subnet}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  {profile.is_current ? (
+                    <Badge variant="success">Active</Badge>
+                  ) : null}
+                  <span className="text-muted-foreground">
+                    {profile.devices_known} device
+                    {profile.devices_known === 1 ? "" : "s"}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {profile.scan_count} scan
+                    {profile.scan_count === 1 ? "" : "s"}
+                  </span>
+                </div>
+              </div>
+              <p className="text-muted-foreground mt-2 text-xs">
+                {profile.is_current
+                  ? "Only devices discovered in this active context are shown below."
+                  : "Kept as history; it is not mixed into the current device inventory."}
+              </p>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label="DISCOVERED"

@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.routes.devices import active_source
@@ -14,12 +14,87 @@ from models.device import Device, DeviceStatus
 from models.event import Event
 from models.metric import DeviceMetric
 from models.scan import Scan, ScanStatus
-from schemas.network import ActivityPoint, NetworkActivityResponse, NetworkStatusResponse
+from schemas.network import (
+    ActivityPoint,
+    NetworkActivityResponse,
+    NetworkProfileListResponse,
+    NetworkProfileResponse,
+    NetworkStatusResponse,
+)
 from services.scanner.coordinator import scan_coordinator
 from services.scanner.service import scan_service
 
 router = APIRouter(prefix="/network", tags=["network"])
 SessionDependency = Annotated[AsyncSession, Depends(get_session)]
+
+
+@router.get("/profiles", response_model=NetworkProfileListResponse)
+async def network_profiles(session: SessionDependency) -> NetworkProfileListResponse:
+    """Return network contexts observed by NetWatch without mixing inventories."""
+
+    source = active_source()
+    scan_groups = list(
+        (
+            await session.execute(
+                select(
+                    Scan.subnet,
+                    Scan.network_id,
+                    func.count(Scan.id).label("scan_count"),
+                    func.max(func.coalesce(Scan.finished_at, Scan.created_at)).label("last_seen"),
+                )
+                .where(Scan.source == source)
+                .group_by(Scan.subnet, Scan.network_id)
+            )
+        ).all()
+    )
+    device_groups = {
+        (subnet, network_id): int(count)
+        for subnet, network_id, count in (
+            await session.execute(
+                select(
+                    Device.network_cidr,
+                    Device.network_id,
+                    func.count(Device.id),
+                )
+                .where(Device.source == source)
+                .group_by(Device.network_cidr, Device.network_id)
+            )
+        ).all()
+    }
+
+    current_key = (settings.netwatch_subnet, settings.netwatch_network_id)
+    observed_keys = {(subnet, network_id) for subnet, network_id, *_ in scan_groups}
+    observed_keys.update(device_groups)
+    observed_keys.add(current_key)
+    scan_by_key = {
+        (subnet, network_id): (int(scan_count), last_seen)
+        for subnet, network_id, scan_count, last_seen in scan_groups
+    }
+
+    items: list[NetworkProfileResponse] = []
+    for subnet, network_id in observed_keys:
+        scan_count, last_seen = scan_by_key.get((subnet, network_id), (0, None))
+        is_current = (subnet, network_id) == current_key
+        items.append(
+            NetworkProfileResponse(
+                subnet=subnet,
+                network_id=network_id,
+                label="Current network" if is_current else "Previously observed network",
+                is_current=is_current,
+                devices_known=device_groups.get((subnet, network_id), 0),
+                scan_count=scan_count,
+                last_seen=last_seen,
+            )
+        )
+
+    items.sort(
+        key=lambda item: (
+            not item.is_current,
+            -(item.last_seen.timestamp() if item.last_seen else 0),
+            item.subnet,
+        )
+    )
+    return NetworkProfileListResponse(items=items)
 
 
 @dataclass
@@ -73,6 +148,7 @@ async def network_status(session: SessionDependency) -> NetworkStatusResponse:
     )
     return NetworkStatusResponse(
         subnet=settings.netwatch_subnet,
+        network_id=settings.netwatch_network_id,
         gateway=gateway or (environment.gateway if environment else None),
         dns_servers=list(environment.dns_servers) if environment else [],
         interface_name=environment.interface_name if environment else None,

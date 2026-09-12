@@ -354,9 +354,13 @@ function ProfileWorkspace({
             <CardTitle className="text-base">Manage {profile.name}</CardTitle>
             <p className="text-muted-foreground mt-1 text-xs">
               Current state: {scheduleLabel(profile)}
-              {profile.next_schedule_change
-                ? ` · changes ${formatRelativeTime(profile.next_schedule_change)}`
-                : ""}
+              {profile.next_schedule_change ? (
+                <span suppressHydrationWarning>
+                  {` · changes ${formatRelativeTime(profile.next_schedule_change)}`}
+                </span>
+              ) : (
+                ""
+              )}
             </p>
           </div>
           <AlertDialog>

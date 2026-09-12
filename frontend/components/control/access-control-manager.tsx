@@ -243,7 +243,10 @@ export function AccessControlManager({
               >
                 <div>
                   <p className="font-medium">{item.device_name || "System"}</p>
-                  <p className="text-muted-foreground mt-1 text-xs">
+                  <p
+                    className="text-muted-foreground mt-1 text-xs"
+                    suppressHydrationWarning
+                  >
                     {formatRelativeTime(item.created_at)}
                   </p>
                 </div>

@@ -104,6 +104,28 @@ class OpenWrtProvider(NetworkControlProvider):
                 sections.append(section)
         return sections
 
+    async def _reload_firewall(self) -> None:
+        """Reload the standard OpenWrt firewall init script.
+
+        OpenWrt exposes the init script through rpcd-mod-file rather than a
+        generic ``firewall.reload`` ubus method. The command and argument are
+        fixed so the integration never accepts arbitrary router commands.
+        """
+
+        result = await self._call(
+            "file",
+            "exec",
+            {
+                "command": "/etc/init.d/firewall",
+                "params": ["reload"],
+                "env": {},
+            },
+        )
+        code = result.get("code")
+        if code != 0:
+            detail = result.get("stderr") or result.get("stdout") or "unknown error"
+            raise RouterProviderError(f"OpenWrt firewall reload failed: {detail}")
+
     async def test_connection(self) -> ProviderHealth:
         try:
             await self._login()
@@ -140,6 +162,7 @@ class OpenWrtProvider(NetworkControlProvider):
         if not enabled and not section:
             return NetworkControlResult(False, "No managed OpenWrt rule was present.")
         if enabled and section:
+            await self._reload_firewall()
             return NetworkControlResult(False, "The OpenWrt firewall rule is already applied.")
         if enabled:
             values = {
@@ -164,6 +187,7 @@ class OpenWrtProvider(NetworkControlProvider):
             for section in matching_sections:
                 await self._call("uci", "delete", {"config": "firewall", "section": section})
         await self._call("uci", "commit", {"config": "firewall"})
+        await self._reload_firewall()
         return NetworkControlResult(
             True, f"OpenWrt managed firewall rule {'applied' if enabled else 'removed'} for {mac}."
         )

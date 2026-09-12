@@ -202,9 +202,13 @@ export function DomainRulesEditor({
                   <EnforcementBadge status={rule.enforcement_status} />
                 </div>
                 <p className="text-muted-foreground mt-1 text-xs">
-                  {rule.expires_at
-                    ? `Expires ${formatRelativeTime(rule.expires_at)}`
-                    : "Permanent"}
+                  {rule.expires_at ? (
+                    <span suppressHydrationWarning>
+                      {`Expires ${formatRelativeTime(rule.expires_at)}`}
+                    </span>
+                  ) : (
+                    "Permanent"
+                  )}
                   {rule.enforcement_error ? ` · ${rule.enforcement_error}` : ""}
                 </p>
               </div>

@@ -202,16 +202,31 @@ export function AlertList({ initial }: { initial: Alert[] }) {
                     </Badge>
                     <h2 className="text-sm font-semibold">{alert.title}</h2>
                   </div>
-                  <p className="text-muted-foreground mt-1 text-sm">
-                    {alert.description}
-                  </p>
+                  <div className="border-border bg-muted/30 mt-3 rounded-md border px-3 py-2">
+                    <p className="text-muted-foreground text-[10px] font-semibold tracking-wide uppercase">
+                      Incident evidence
+                    </p>
+                    <p className="text-muted-foreground mt-1 text-sm">
+                      {alert.description}
+                    </p>
+                    <p className="text-muted-foreground mt-1 text-xs">
+                      Signal: {alert.type}
+                    </p>
+                  </div>
                   <div className="text-muted-foreground mt-1 flex gap-3 text-xs">
                     {alert.device_id && alert.device_name ? (
-                      <Link href={`/devices/${alert.device_id}`}>
+                      <Link
+                        href={`/devices/${alert.device_id}?tab=activity`}
+                        className="text-primary hover:underline"
+                      >
                         {alert.device_name}
                       </Link>
                     ) : null}
-                    <time dateTime={alert.created_at}>
+                    <span>
+                      {alert.resolved ? "Resolved" : "Open"} ·{" "}
+                      {alert.read ? "Read" : "Unread"}
+                    </span>
+                    <time dateTime={alert.created_at} suppressHydrationWarning>
                       {formatRelativeTime(alert.created_at)}
                     </time>
                   </div>

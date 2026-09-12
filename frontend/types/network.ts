@@ -1,5 +1,6 @@
 export interface NetworkStatus {
   subnet: string;
+  network_id: string;
   gateway: string | null;
   dns_servers: string[];
   interface_name: string | null;
@@ -12,6 +13,20 @@ export interface NetworkStatus {
   scan_running: boolean;
   last_completed_scan: string | null;
   next_scheduled_scan: string | null;
+}
+
+export interface NetworkProfile {
+  subnet: string;
+  network_id: string;
+  label: string;
+  is_current: boolean;
+  devices_known: number;
+  scan_count: number;
+  last_seen: string | null;
+}
+
+export interface NetworkProfileList {
+  items: NetworkProfile[];
 }
 
 export interface NetworkActivityPoint {

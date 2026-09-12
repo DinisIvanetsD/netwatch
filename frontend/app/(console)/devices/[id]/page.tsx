@@ -40,6 +40,7 @@ import {
   formatDate,
   formatLatency,
   formatRelativeTime,
+  hasAssignedDeviceName,
 } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -84,6 +85,7 @@ export default async function DeviceDetailPage({
     ? (rawTab as DeviceTab)
     : "overview";
   const displayName = deviceDisplayName(device);
+  const hasAssignedName = hasAssignedDeviceName(device);
   const profiles = await getControlProfiles();
   const profile = profiles.items.find((item) => item.id === device.profile_id);
   const [
@@ -123,10 +125,23 @@ export default async function DeviceDetailPage({
             </h1>
             <DeviceStatusBadge status={device.status} />
           </div>
-          <div className="text-muted-foreground mt-2 flex flex-wrap gap-x-5 gap-y-1 font-mono text-xs">
-            <span>{device.ip_address}</span>
-            <span>{device.mac_address ?? "MAC unavailable"}</span>
+          <div className="text-muted-foreground mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs">
+            <span>{device.owner ?? "Owner not assigned"}</span>
+            <span>{device.device_type ?? "Type unknown"}</span>
+            <span>{device.hostname ?? "Hostname unavailable"}</span>
           </div>
+          <div className="text-muted-foreground mt-1 flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs">
+            <span>IP {device.ip_address}</span>
+            <span>MAC {device.mac_address ?? "unavailable"}</span>
+          </div>
+          {!hasAssignedName ? (
+            <Link
+              href={`/devices/${device.id}?tab=access`}
+              className="text-primary mt-3 inline-block text-xs font-semibold"
+            >
+              Name this device and assign an owner
+            </Link>
+          ) : null}
         </div>
         {device.is_gateway ? (
           <div className="border-primary/20 bg-primary/5 text-primary flex items-center gap-2 rounded-lg border px-3 py-2 text-xs">
@@ -169,12 +184,16 @@ export default async function DeviceDetailPage({
             </CardHeader>
             <CardContent className="border-border bg-border grid gap-px overflow-hidden rounded-lg border p-0 sm:grid-cols-2">
               {[
-                ["Vendor", device.vendor ?? "Unknown"],
+                [
+                  "Assigned name",
+                  hasAssignedName ? displayName : "Not assigned",
+                ],
+                ["Owner", device.owner ?? "Not assigned"],
+                ["Device type", device.device_type ?? "Not assigned"],
                 ["Hostname", device.hostname ?? "Unavailable"],
                 ["IP address", device.ip_address],
                 ["MAC address", device.mac_address ?? "Unavailable"],
-                ["Device type", device.device_type ?? "Not assigned"],
-                ["Owner", device.owner ?? "Not assigned"],
+                ["Vendor", device.vendor ?? "Unknown"],
                 ["Profile", profile?.name ?? "Unassigned"],
                 ["First seen", formatDate(device.first_seen)],
                 ["Last seen", formatRelativeTime(device.last_seen)],

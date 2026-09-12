@@ -21,6 +21,7 @@ NetWatch is an open-source, self-hosted network monitoring dashboard for discove
 - Capability-aware provider architecture that never invents unsupported controls
 - Technitium DNS Server integration with query logging, statistics, managed website rules, and client policy groups
 - Per-device Internet activity with inferred services, DNS-derived categories, and blocked-request explanations
+- Separate network profiles that keep hotspot/Wi-Fi inventories and scan history isolated
 - Guided first-run readiness checks for discovery, current-network identity, Technitium, DNS routing, and router capabilities
 - Portfolio-ready network reports with print support and CSV export for devices, alerts, and DNS metadata
 - Administrator-managed device names, owners, types, trust states, and household profile assignments
@@ -162,7 +163,7 @@ passwords, or page contents. DNS-only blocking can also be bypassed by direct
 IP traffic, encrypted DNS, or a VPN.
 
 Full device blocking or LAN quarantine requires a supported router/firewall
-provider such as OpenWrt, OPNsense, or pfSense. Hitron/NOS and mobile hotspots
+provider such as OpenWrt or OPNsense. pfSense, Hitron/NOS, and mobile hotspots
 without a documented control API remain monitoring-only/manual; NetWatch keeps
 those actions disabled instead of claiming that a block succeeded.
 
@@ -241,7 +242,7 @@ NetWatch stores maintainable category policy identifiers and reports DNS-derived
 
 ## Device Access Control
 
-Open **Control → Access Control** or the **Access** tab on a device. Renaming, ownership, device type, profile assignment, trust, and ignore actions work in NetWatch itself. When Technitium is connected, NetWatch offers per-device DNS containment only after recent query-log evidence confirms that the device is actually using it. For provider-backed control, configure OpenWrt or OPNsense in **Settings → Router integration**. The interface enables only the capabilities the provider confirms; NOS/Hitron stays manual when no supported API is available.
+Open **Control → Access Control** or the **Access** tab on a device. Renaming, ownership, device type, profile assignment, trust, and ignore actions work in NetWatch itself. When Technitium is connected, NetWatch offers per-device DNS containment only after recent query-log evidence confirms that the device is actually using it. For provider-backed control, configure OpenWrt or OPNsense in **Settings → Router integration**. The interface enables only the capabilities the provider confirms; pfSense and NOS/Hitron stay manual when no supported API is available.
 
 Every attempted control action is written to the audit log with its actor, provider, result, timestamp, and message. A failed provider request never changes the displayed device state.
 
@@ -297,7 +298,7 @@ The DNS provider interface is ready for additional adapters, but a Pi-hole adapt
 
 ## Router Integration
 
-The network-control interface defines capability checks for client inventory, status, Internet blocking, release, quarantine, disconnect, bandwidth metrics, and firewall rules. Technitium supplies a deliberately limited DNS-containment fallback; it never advertises LAN quarantine or firewall control. OpenWrt uses authenticated ubus and stable MAC identity. OPNsense uses authenticated REST rules and the current private IP owner because standard pf rules do not support MAC matching. The detected NOS/CHITA web interface has a manual Device Filter but no verified public automation API, so NetWatch does not scrape its login or simulate success.
+The network-control interface defines capability checks for client inventory, status, Internet blocking, release, quarantine, disconnect, bandwidth metrics, and firewall rules. Technitium supplies a deliberately limited DNS-containment fallback; it never advertises LAN quarantine or firewall control. OpenWrt uses authenticated ubus for UCI changes and the fixed `/etc/init.d/firewall reload` command through `rpcd-mod-file` before reporting success; the router ACL must allow that exact command. OPNsense uses authenticated REST rules and the current private IP owner because standard pf rules do not support MAC matching. The detected NOS/CHITA web interface has a manual Device Filter but no verified public automation API, so NetWatch does not scrape its login or simulate success. pfSense is not advertised as an automated provider until a supported API adapter is verified.
 
 ## Windows desktop app
 
@@ -327,7 +328,7 @@ Set `NETWATCH_DEMO_MODE=true` to enable the isolated demo dataset. Demo records 
 
 FastAPI publishes OpenAPI at `/docs` and ReDoc at `/redoc` outside production. The Phase 1 health endpoint is `GET /api/health`, and the real-time transport is available at `/ws`.
 
-`GET /api/readiness` returns secret-free deployment diagnostics for the database, discovery
+`GET /api/network/profiles` returns current and previously observed network contexts without mixing their inventories. `GET /api/readiness` returns secret-free deployment diagnostics for the database, discovery
 adapter, current network identity, Technitium query history, and router-control capabilities. A
 degraded readiness result is returned as HTTP 200 so the Settings page can explain the next step;
 `/api/health` remains the liveness endpoint.

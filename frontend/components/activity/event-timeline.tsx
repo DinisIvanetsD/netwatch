@@ -31,6 +31,12 @@ export function EventTimeline({ events }: { events: NetworkEvent[] }) {
         <ol className="divide-border divide-y">
           {events.map((event) => {
             const Icon = icons[event.type];
+            const evidence = ["source", "reason", "confidence"]
+              .map((key) => [key, event.metadata[key]] as const)
+              .filter(
+                ([, value]) =>
+                  typeof value === "string" || typeof value === "number",
+              );
             return (
               <li key={event.id} className="flex gap-4 p-4 sm:p-5">
                 <span className="bg-muted text-muted-foreground mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg">
@@ -49,6 +55,26 @@ export function EventTimeline({ events }: { events: NetworkEvent[] }) {
                       {event.severity}
                     </Badge>
                   </div>
+                  <div className="border-border bg-muted/30 mt-3 rounded-md border px-3 py-2 text-xs">
+                    <p className="text-muted-foreground font-semibold tracking-wide uppercase">
+                      Event evidence
+                    </p>
+                    <p className="mt-1">{event.message}</p>
+                    {evidence.length ? (
+                      <dl className="text-muted-foreground mt-2 grid gap-x-4 gap-y-1 sm:grid-cols-3">
+                        {evidence.map(([key, value]) => (
+                          <div key={key}>
+                            <dt className="capitalize">{key}</dt>
+                            <dd className="text-foreground">{String(value)}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    ) : (
+                      <p className="text-muted-foreground mt-1">
+                        No additional diagnostic context was provided.
+                      </p>
+                    )}
+                  </div>
                   <div className="text-muted-foreground mt-1 flex flex-wrap gap-x-3 text-xs">
                     {event.device_id && event.device_name ? (
                       <Link
@@ -61,6 +87,7 @@ export function EventTimeline({ events }: { events: NetworkEvent[] }) {
                     <time
                       dateTime={event.timestamp}
                       title={new Date(event.timestamp).toLocaleString()}
+                      suppressHydrationWarning
                     >
                       {formatRelativeTime(event.timestamp)}
                     </time>

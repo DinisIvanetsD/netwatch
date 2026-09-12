@@ -52,6 +52,11 @@ describe("AlertList", () => {
 
     expect(screen.getByText("Device offline")).toBeInTheDocument();
     expect(screen.queryByText("New service detected")).not.toBeInTheDocument();
+    expect(screen.getByText("Incident evidence")).toBeInTheDocument();
+    expect(screen.getByText("Signal: device.offline")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Living Room TV" }),
+    ).toHaveAttribute("href", "/devices/1?tab=activity");
   });
 
   it("updates an alert and reflects the resolved state", async () => {

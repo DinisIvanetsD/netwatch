@@ -16,6 +16,7 @@ class ScanResponse(BaseModel):
     duration_ms: float | None
     error: str | None
     subnet: str
+    network_id: str
     created_at: datetime
 
     @field_validator("started_at", "finished_at", "created_at", mode="after")

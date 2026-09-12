@@ -10,5 +10,6 @@ export interface Scan {
   duration_ms: number | null;
   error: string | null;
   subnet: string;
+  network_id: string;
   created_at: string;
 }
