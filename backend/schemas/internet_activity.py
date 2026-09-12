@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class InternetActivityResponse(BaseModel):
@@ -72,3 +72,7 @@ class InternetActivityDiagnosticsResponse(BaseModel):
     unmatched_clients: list[str]
     message: str
     steps: list[str]
+    attributed_records: int = 0
+    unmatched_records: int = 0
+    ambiguous_records: int = 0
+    ambiguous_clients: list[str] = Field(default_factory=list)

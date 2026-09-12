@@ -100,7 +100,10 @@ export default async function DevicesPage({
       </div>
 
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <div className="border-border bg-card flex flex-wrap gap-1 rounded-lg border p-1">
+        <nav
+          className="border-border bg-card flex flex-wrap gap-1 rounded-lg border p-1"
+          aria-label="Filter devices by status"
+        >
           {statuses.map((item) => {
             const active = status === item.value || (!status && !item.value);
             return (
@@ -113,12 +116,14 @@ export default async function DevicesPage({
                     ? "bg-accent text-foreground"
                     : "text-muted-foreground hover:text-foreground",
                 )}
+                aria-current={active ? "page" : undefined}
+                aria-label={`Show ${item.label.toLowerCase()} devices`}
               >
                 {item.label}
               </Link>
             );
           })}
-        </div>
+        </nav>
 
         <form
           action="/devices"

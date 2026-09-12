@@ -38,6 +38,7 @@ async def _communicate_with_cleanup(
             await cleanup
         raise
 
+
 WINDOWS_NETWORK_SCRIPT = r"""
 $routes = Get-NetRoute -AddressFamily IPv4 -DestinationPrefix '0.0.0.0/0' -ErrorAction Stop |
   Where-Object { $_.NextHop -ne '0.0.0.0' } |
@@ -140,9 +141,7 @@ def parse_windows_networks(payload: str) -> list[NetworkEnvironment]:
                 interface_name=interface_name[:120],
                 hostname=hostname[:255] if hostname else None,
                 mac_address=normalize_mac(row.get("mac_address")),
-                network_id=_verified_network_id(
-                    row.get("profile_id"), row.get("gateway_mac")
-                ),
+                network_id=_verified_network_id(row.get("profile_id"), row.get("gateway_mac")),
             )
         )
     return environments

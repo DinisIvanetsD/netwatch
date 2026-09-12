@@ -21,6 +21,8 @@ NetWatch is an open-source, self-hosted network monitoring dashboard for discove
 - Capability-aware provider architecture that never invents unsupported controls
 - Technitium DNS Server integration with query logging, statistics, managed website rules, and client policy groups
 - Per-device Internet activity with inferred services, DNS-derived categories, and blocked-request explanations
+- Guided first-run readiness checks for discovery, current-network identity, Technitium, DNS routing, and router capabilities
+- Portfolio-ready network reports with print support and CSV export for devices, alerts, and DNS metadata
 - Administrator-managed device names, owners, types, trust states, and household profile assignments
 - Parental profiles with schedules, category preferences, and permanent or temporary website rules
 - Capability-aware access control and a complete audit trail for successful and failed actions
@@ -216,6 +218,13 @@ The Internet Activity page associates Technitium DNS records with inventory devi
 
 DNS records are observations, not exact usage time. Seeing `youtube.com` means the device requested that domain; it does not prove which page or video was viewed.
 
+The Settings page includes a readiness checklist and a diagnostic view. It distinguishes a healthy
+configuration from a provider that is unavailable, not configured, or unsupported. IP-to-device
+attribution also considers the stored local address history, so a DHCP address change does not
+silently attach old DNS records to the wrong device. The **Reports** page provides a printable
+snapshot and CSV exports of the data currently loaded; exports are intentionally limited to the
+same metadata NetWatch can observe.
+
 ## Parental Controls
 
 Open **Control → Parental Controls** to create profiles, assign devices, save allowed Internet windows, choose category-policy preferences, and add custom allow or block rules. Rule precedence is designed around explicit scope: device-specific rules are more specific than profile rules, which are more specific than global rules. Temporary rules expire automatically.
@@ -317,6 +326,11 @@ Set `NETWATCH_DEMO_MODE=true` to enable the isolated demo dataset. Demo records 
 ## API Documentation
 
 FastAPI publishes OpenAPI at `/docs` and ReDoc at `/redoc` outside production. The Phase 1 health endpoint is `GET /api/health`, and the real-time transport is available at `/ws`.
+
+`GET /api/readiness` returns secret-free deployment diagnostics for the database, discovery
+adapter, current network identity, Technitium query history, and router-control capabilities. A
+degraded readiness result is returned as HTTP 200 so the Settings page can explain the next step;
+`/api/health` remains the liveness endpoint.
 
 Runtime configuration is available through `GET /api/settings` and `PATCH /api/settings`. Historical metrics, events, alerts, and scan records can be removed with `DELETE /api/settings/history`; device inventory, active services, and application settings are preserved.
 

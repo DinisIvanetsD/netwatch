@@ -101,8 +101,7 @@ class Settings(BaseSettings):
             or parsed.fragment
         ):
             raise ValueError(
-                "NETWATCH_HOST_SENSOR_URL must be an HTTP URL for localhost or "
-                "host.docker.internal"
+                "NETWATCH_HOST_SENSOR_URL must be an HTTP URL for localhost or host.docker.internal"
             )
         try:
             port = parsed.port

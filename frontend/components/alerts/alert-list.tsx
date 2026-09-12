@@ -24,6 +24,7 @@ export function AlertList({ initial }: { initial: Alert[] }) {
   const [page, setPage] = useState(1);
   const [workingId, setWorkingId] = useState<number | null>(null);
   const [message, setMessage] = useState("");
+  const [messageKind, setMessageKind] = useState<"success" | "error">("error");
 
   const devices = useMemo(
     () =>
@@ -75,7 +76,12 @@ export function AlertList({ initial }: { initial: Alert[] }) {
       setAlerts((current) =>
         current.map((alert) => (alert.id === id ? updated : alert)),
       );
+      setMessageKind("success");
+      setMessage(
+        updated.resolved ? "Alert resolved." : "Alert marked as read.",
+      );
     } catch (error) {
+      setMessageKind("error");
       setMessage(
         error instanceof Error
           ? error.message
@@ -158,6 +164,12 @@ export function AlertList({ initial }: { initial: Alert[] }) {
         <span>
           Showing {visible.length} of {filtered.length} matching alerts
         </span>
+        <span className="flex gap-3" aria-label="Alert summary">
+          <span>{alerts.filter((alert) => !alert.read).length} unread</span>
+          <span>
+            {alerts.filter((alert) => !alert.resolved).length} unresolved
+          </span>
+        </span>
         {pageCount > 1 ? (
           <span>
             Page {currentPage} of {pageCount}
@@ -177,19 +189,18 @@ export function AlertList({ initial }: { initial: Alert[] }) {
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge
                       variant={
-                        alert.severity === "medium" || alert.severity === "high"
-                          ? "warning"
-                          : "secondary"
+                        alert.severity === "high" ? "warning" : "secondary"
                       }
                     >
                       {alert.severity.toUpperCase()}
                     </Badge>
+                    <Badge variant={alert.resolved ? "success" : "default"}>
+                      {alert.resolved ? "Resolved" : "Open"}
+                    </Badge>
+                    <Badge variant={alert.read ? "secondary" : "warning"}>
+                      {alert.read ? "READ" : "UNREAD"}
+                    </Badge>
                     <h2 className="text-sm font-semibold">{alert.title}</h2>
-                    {alert.resolved ? (
-                      <span className="text-muted-foreground text-xs">
-                        Resolved
-                      </span>
-                    ) : null}
                   </div>
                   <p className="text-muted-foreground mt-1 text-sm">
                     {alert.description}
@@ -264,7 +275,15 @@ export function AlertList({ initial }: { initial: Alert[] }) {
         </div>
       ) : null}
 
-      <p className="text-destructive text-xs" role="status">
+      <p
+        className={
+          messageKind === "error"
+            ? "text-destructive text-xs"
+            : "text-xs text-emerald-400"
+        }
+        role="status"
+        aria-live="polite"
+      >
         {message}
       </p>
     </div>

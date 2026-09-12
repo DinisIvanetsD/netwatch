@@ -18,7 +18,11 @@ const dotStyles: Record<DeviceStatus, string> = {
 
 export function DeviceStatusBadge({ status }: { status: DeviceStatus }) {
   return (
-    <Badge variant="secondary" className={statusStyles[status]}>
+    <Badge
+      variant="secondary"
+      className={statusStyles[status]}
+      aria-label={`Device status: ${status}`}
+    >
       <span
         className={cn("size-1.5 rounded-full", dotStyles[status])}
         aria-hidden="true"

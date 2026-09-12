@@ -152,9 +152,7 @@ def _identifier(device: Device, provider: NetworkControlProvider) -> str:
     return device.mac_address or device.ip_address
 
 
-def _action_identifier(
-    device: Device, provider: NetworkControlProvider, action: str
-) -> str:
+def _action_identifier(device: Device, provider: NetworkControlProvider, action: str) -> str:
     if action in {"resume_internet", "release"} and device.control_identifier:
         if device.control_provider_id != provider.provider_id:
             raise NetworkControlActionError(
@@ -251,10 +249,8 @@ async def perform_network_action(
         and applied_to_current_identifier,
         "resume_internet": device.internet_access == "allowed"
         and device.control_identifier is None,
-        "block_internet": device.internet_access == "blocked"
-        and applied_to_current_identifier,
-        "quarantine": device.trust_state == "quarantined"
-        and applied_to_current_identifier,
+        "block_internet": device.internet_access == "blocked" and applied_to_current_identifier,
+        "quarantine": device.trust_state == "quarantined" and applied_to_current_identifier,
         "release": device.trust_state not in {"quarantined", "blocked"}
         and device.internet_access == "allowed",
         "block_device": device.trust_state == "blocked" and applied_to_current_identifier,

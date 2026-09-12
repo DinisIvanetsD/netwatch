@@ -20,9 +20,7 @@ def _utc(value: datetime) -> datetime:
 
 
 def _identity_score(device: Device) -> tuple[int, int, datetime, int]:
-    name_is_custom = bool(
-        device.name and device.name not in {device.ip_address, device.hostname}
-    )
+    name_is_custom = bool(device.name and device.name not in {device.ip_address, device.hostname})
     identity = (
         (80 if device.owner else 0)
         + (70 if device.profile_id is not None else 0)
@@ -77,18 +75,12 @@ def _merge_device_fields(keeper: Device, duplicate: Device) -> None:
         keeper.latency_ms = duplicate.latency_ms
 
 
-async def _merge_services(
-    session: AsyncSession, keeper_id: int, duplicate_id: int
-) -> None:
+async def _merge_services(session: AsyncSession, keeper_id: int, duplicate_id: int) -> None:
     keeper_services = list(
-        (
-            await session.scalars(select(Service).where(Service.device_id == keeper_id))
-        ).all()
+        (await session.scalars(select(Service).where(Service.device_id == keeper_id))).all()
     )
     duplicate_services = list(
-        (
-            await session.scalars(select(Service).where(Service.device_id == duplicate_id))
-        ).all()
+        (await session.scalars(select(Service).where(Service.device_id == duplicate_id))).all()
     )
     by_key = {(service.port, service.protocol): service for service in keeper_services}
     services_to_move: list[Service] = []

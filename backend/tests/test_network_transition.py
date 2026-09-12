@@ -36,14 +36,10 @@ async def test_same_cidr_physical_network_change_is_a_real_scope_transition(
     reconcile = AsyncMock()
     broadcast = AsyncMock()
     update_scope = MagicMock()
-    monkeypatch.setattr(
-        transition_module, "clear_dns_containment_for_network_switch", clear
-    )
+    monkeypatch.setattr(transition_module, "clear_dns_containment_for_network_switch", clear)
     monkeypatch.setattr(transition_module, "reconcile_all_rules", reconcile)
     monkeypatch.setattr(transition_module.connection_manager, "broadcast", broadcast)
-    monkeypatch.setattr(
-        transition_module.provider_registry, "update_network_scope", update_scope
-    )
+    monkeypatch.setattr(transition_module.provider_registry, "update_network_scope", update_scope)
     previous_subnet = settings.netwatch_subnet
     previous_network_id = settings.netwatch_network_id
     settings.netwatch_subnet = "192.168.1.0/24"

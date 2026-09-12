@@ -58,6 +58,10 @@ export interface InternetActivityDiagnostics {
   unmatched_clients: string[];
   message: string;
   steps: string[];
+  attributed_records: number;
+  unmatched_records: number;
+  ambiguous_records: number;
+  ambiguous_clients: string[];
 }
 
 export interface InternetActivityQuery {

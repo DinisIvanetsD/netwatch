@@ -11,6 +11,7 @@ from models.device import Device, DeviceSource, DeviceStatus
 from models.device_address import DeviceAddressHistory
 from models.internet_activity import InternetActivity
 from services.activity import sync as sync_module
+from services.activity.sync import resolve_record_owners
 from services.providers.dns import DNSCapability, DNSQueryRecord
 
 
@@ -50,6 +51,78 @@ def _device(ip: str, first_seen: datetime, last_seen: datetime) -> Device:
         last_seen=last_seen,
         is_gateway=False,
     )
+
+
+def test_record_owner_resolution_tracks_dhcp_turnover_safely() -> None:
+    start = datetime(2026, 1, 1, tzinfo=UTC)
+    turnover = start + timedelta(hours=1)
+    old = _device("192.168.1.10", start, turnover)
+    old.id = 1
+    new = _device("192.168.1.10", turnover, turnover + timedelta(hours=1))
+    new.id = 2
+    histories = {
+        "192.168.1.10": [
+            DeviceAddressHistory(
+                device_id=1,
+                ip_address="192.168.1.10",
+                started_at=start,
+                ended_at=turnover,
+            ),
+            DeviceAddressHistory(device_id=2, ip_address="192.168.1.10", started_at=turnover),
+        ]
+    }
+    devices = {1: old, 2: new}
+    assert resolve_record_owners(
+        DNSQueryRecord(
+            start + timedelta(minutes=30),
+            "192.168.1.10",
+            "old.test",
+            "A",
+            "NOERROR",
+            False,
+        ),
+        histories,
+        devices,
+    ) == [old]
+    assert resolve_record_owners(
+        DNSQueryRecord(
+            turnover + timedelta(minutes=30),
+            "192.168.1.10",
+            "new.test",
+            "A",
+            "NOERROR",
+            False,
+        ),
+        histories,
+        devices,
+    ) == [new]
+    assert (
+        len(
+            resolve_record_owners(
+                DNSQueryRecord(turnover, "192.168.1.10", "handoff.test", "A", "NOERROR", False),
+                histories,
+                devices,
+            )
+        )
+        == 2
+    )
+    histories["192.168.1.10"].append(
+        DeviceAddressHistory(
+            device_id=1,
+            ip_address="192.168.1.10",
+            network_cidr="192.168.1.0/24",
+            network_id="legacy",
+            started_at=start,
+            ended_at=turnover,
+        )
+    )
+    assert resolve_record_owners(
+        DNSQueryRecord(
+            start + timedelta(minutes=30), "192.168.1.10", "duplicate.test", "A", "NOERROR", False
+        ),
+        histories,
+        devices,
+    ) == [old]
 
 
 async def _run_sync(
@@ -139,9 +212,7 @@ async def test_sync_is_idempotent_across_device_resolution(
     session_factory: async_sessionmaker[AsyncSession],
 ) -> None:
     timestamp = datetime(2026, 1, 1, 12, tzinfo=UTC)
-    record = DNSQueryRecord(
-        timestamp, "192.168.1.20", "same.test", "AAAA", "NOERROR", False
-    )
+    record = DNSQueryRecord(timestamp, "192.168.1.20", "same.test", "AAAA", "NOERROR", False)
     async with session_factory() as session:
         device = _device("192.168.1.20", timestamp - timedelta(hours=1), timestamp)
         session.add(device)

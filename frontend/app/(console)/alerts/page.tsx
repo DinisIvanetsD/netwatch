@@ -22,7 +22,7 @@ export default async function AlertsPage() {
       ) : (
         <EmptyState
           title="No active alerts"
-          description="Your network currently has no unresolved alerts."
+          description="Your network currently has no alerts to review."
           icon={ShieldCheck}
         />
       )}

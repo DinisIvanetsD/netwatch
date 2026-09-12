@@ -165,9 +165,7 @@ async def test_duplicate_mac_reconciliation_preserves_identity_and_history() -> 
             )
             await session.flush()
 
-            remaining, changed_ids = await consolidate_duplicate_devices(
-                session, [stale, keeper]
-            )
+            remaining, changed_ids = await consolidate_duplicate_devices(session, [stale, keeper])
             outcome = process_discovery_results(
                 {device.ip_address: device for device in remaining},
                 [
@@ -205,15 +203,11 @@ async def test_duplicate_mac_reconciliation_preserves_identity_and_history() -> 
             assert https.last_seen.replace(tzinfo=UTC) == now
             assert https.active is True
             for model in (DeviceMetric, Event, Alert, AccessAudit, InternetActivity):
-                assert set((await session.scalars(select(model.device_id))).all()) == {
-                    keeper.id
-                }
+                assert set((await session.scalars(select(model.device_id))).all()) == {keeper.id}
             rule = await session.scalar(select(DomainRule))
             assert rule is not None
             assert rule.scope_id == keeper.id
-            second_pass, second_changed = await consolidate_duplicate_devices(
-                session, remaining
-            )
+            second_pass, second_changed = await consolidate_duplicate_devices(session, remaining)
             assert second_pass == remaining
             assert second_changed == set()
     finally:
@@ -224,6 +218,7 @@ async def test_ip_change_reconciles_dns_rules(monkeypatch) -> None:
     engine, factory = await _session_factory()
     now = datetime.now(UTC)
     previous_subnet = scanner_module.settings.netwatch_subnet
+    previous_network_id = scanner_module.settings.netwatch_network_id
     reconciled: list[int] = []
 
     async def record_reconciliation(_session, device_id: int, _source) -> None:
@@ -240,6 +235,7 @@ async def test_ip_change_reconciles_dns_rules(monkeypatch) -> None:
     monkeypatch.setattr(scanner_module.connection_manager, "broadcast", ignore_broadcast)
     monkeypatch.setattr(scanner_module, "sync_dns_activity", no_dns_activity)
     scanner_module.settings.netwatch_subnet = "192.168.1.0/24"
+    scanner_module.settings.netwatch_network_id = "legacy"
     try:
         async with factory() as session:
             device = Device(
@@ -315,6 +311,96 @@ async def test_ip_change_reconciles_dns_rules(monkeypatch) -> None:
             assert completed.status == ScanStatus.COMPLETED
     finally:
         scanner_module.settings.netwatch_subnet = previous_subnet
+        scanner_module.settings.netwatch_network_id = previous_network_id
+        await engine.dispose()
+
+
+async def test_ip_reuse_closes_displaced_address_history(monkeypatch) -> None:
+    engine, factory = await _session_factory()
+    now = datetime.now(UTC)
+    previous_subnet = scanner_module.settings.netwatch_subnet
+    previous_network_id = scanner_module.settings.netwatch_network_id
+
+    async def no_op(*_args, **_kwargs) -> None:
+        return None
+
+    monkeypatch.setattr(scanner_module, "SessionLocal", factory)
+    monkeypatch.setattr(scanner_module, "apply_new_device_policy", no_op)
+    monkeypatch.setattr(scanner_module, "reconcile_network_control_identifiers", no_op)
+    monkeypatch.setattr(scanner_module, "reconcile_device_rules", no_op)
+    monkeypatch.setattr(scanner_module, "reconcile_all_rules", no_op)
+    monkeypatch.setattr(scanner_module.connection_manager, "broadcast", no_op)
+    monkeypatch.setattr(scanner_module, "sync_dns_activity", no_op)
+    scanner_module.settings.netwatch_subnet = "192.168.1.0/24"
+    scanner_module.settings.netwatch_network_id = "legacy"
+    try:
+        async with factory() as session:
+            previous = Device(
+                name="Previous phone",
+                ip_address="192.168.1.131",
+                mac_address="00:11:22:33:44:55",
+                status=DeviceStatus.ONLINE,
+                source=DeviceSource.LIVE,
+                network_cidr="192.168.1.0/24",
+                first_seen=now - timedelta(hours=2),
+                last_seen=now - timedelta(minutes=1),
+                is_gateway=False,
+            )
+            scan = Scan(
+                status=ScanStatus.RUNNING,
+                subnet="192.168.1.0/24",
+                source=DeviceSource.LIVE,
+            )
+            session.add_all([previous, scan])
+            await session.flush()
+            session.add(
+                DeviceAddressHistory(
+                    device_id=previous.id,
+                    ip_address=previous.ip_address,
+                    network_cidr=previous.network_cidr,
+                    network_id=previous.network_id,
+                    started_at=previous.first_seen,
+                )
+            )
+            await session.commit()
+            previous_id = previous.id
+            scan_id = scan.id
+
+        service = ScanService(discovery=object())
+        await service._persist_results(
+            scan_id,
+            [
+                DiscoveryResult(
+                    ip_address="192.168.1.131",
+                    reachable=True,
+                    latency_ms=3.0,
+                    mac_address="AA:BB:CC:DD:EE:FF",
+                    hostname="NEW-PHONE",
+                )
+            ],
+            None,
+            perf_counter(),
+        )
+
+        async with factory() as session:
+            histories = list(
+                (
+                    await session.scalars(
+                        select(DeviceAddressHistory).order_by(DeviceAddressHistory.started_at)
+                    )
+                ).all()
+            )
+            stored_previous = await session.get(Device, previous_id)
+            assert stored_previous is not None
+            assert stored_previous.status == DeviceStatus.OFFLINE
+            assert len(histories) == 2
+            assert histories[0].device_id == previous_id
+            assert histories[0].ended_at is not None
+            assert histories[1].device_id != previous_id
+            assert histories[1].ended_at is None
+    finally:
+        scanner_module.settings.netwatch_subnet = previous_subnet
+        scanner_module.settings.netwatch_network_id = previous_network_id
         await engine.dispose()
 
 
@@ -402,9 +488,7 @@ async def test_historical_ip_reuse_keeps_distinct_mac_identities() -> None:
 
             rows = list(
                 (
-                    await session.scalars(
-                        select(Device).where(Device.ip_address == "192.168.1.37")
-                    )
+                    await session.scalars(select(Device).where(Device.ip_address == "192.168.1.37"))
                 ).all()
             )
             assert outcome.observed == [laptop]

@@ -12,7 +12,11 @@ const trustStyles: Record<DeviceTrustState, string> = {
 
 export function TrustBadge({ state }: { state: DeviceTrustState }) {
   return (
-    <Badge variant="secondary" className={cn("capitalize", trustStyles[state])}>
+    <Badge
+      variant="secondary"
+      className={cn("capitalize", trustStyles[state])}
+      aria-label={`Trust state: ${state}`}
+    >
       <span className="size-1.5 rounded-full bg-current" aria-hidden="true" />
       {state}
     </Badge>
@@ -29,6 +33,7 @@ export function InternetAccessBadge({ state }: { state: InternetAccessState }) {
   return (
     <Badge
       variant={variant}
+      aria-label={`Internet access: ${state}`}
       className={cn(
         state === "blocked" && "border-red-500/25 bg-red-500/10 text-red-300",
       )}

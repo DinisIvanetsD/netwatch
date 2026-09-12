@@ -14,6 +14,7 @@ from main import app
 from models.alert import Alert
 from models.control import AccessAudit, AccessSchedule, ControlProfile, DomainRule
 from models.device import Device, DeviceSource, DeviceStatus
+from models.device_address import DeviceAddressHistory
 from models.event import Event, EventSeverity, EventType
 from models.internet_activity import InternetActivity
 from models.metric import DeviceMetric
@@ -752,8 +753,21 @@ async def test_blocked_request_log_explains_profile_rule(
 
 async def test_internet_activity_diagnostics_matches_current_network_devices(
     device_client: TestClient,
+    device_session_factory: async_sessionmaker[AsyncSession],
     live_device: Device,
 ) -> None:
+    async with device_session_factory() as session:
+        session.add(
+            DeviceAddressHistory(
+                device_id=live_device.id,
+                ip_address=live_device.ip_address,
+                network_cidr=live_device.network_cidr,
+                network_id="legacy",
+                started_at=live_device.first_seen,
+            )
+        )
+        await session.commit()
+
     class DiagnosticDNSProvider:
         provider_id = "diagnostic_dns"
         display_name = "Diagnostic DNS"

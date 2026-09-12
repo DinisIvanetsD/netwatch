@@ -322,9 +322,8 @@ class TechnitiumDNSProvider(DNSControlProvider):
                 entry: dict[str, Any] = {"client": normalized}
                 mappings = config.get("networkGroupMap")
                 previous_group = mappings.get(normalized) if isinstance(mappings, dict) else None
-                if (
-                    isinstance(previous_group, str)
-                    and not previous_group.startswith(_NETWATCH_GROUP_PREFIX)
+                if isinstance(previous_group, str) and not previous_group.startswith(
+                    _NETWATCH_GROUP_PREFIX
                 ):
                     entry["previousGroup"] = previous_group
                 state[reference] = entry
@@ -360,9 +359,7 @@ class TechnitiumDNSProvider(DNSControlProvider):
                 client = containment.get("client")
                 if isinstance(client, str):
                     restored = self._restore_previous_mapping(restored, client, containment)
-            await self._set_managed_config(
-                app_name, restored, self._managed_rules(restored), {}
-            )
+            await self._set_managed_config(app_name, restored, self._managed_rules(restored), {})
             return len(containments)
 
     def set_network_cidr(self, network_cidr: str) -> None:
@@ -439,9 +436,7 @@ class TechnitiumDNSProvider(DNSControlProvider):
         return None
 
     @staticmethod
-    def _store_app(
-        apps: list[Any], predicate: Any
-    ) -> dict[str, str] | None:
+    def _store_app(apps: list[Any], predicate: Any) -> dict[str, str] | None:
         for app in apps:
             if not isinstance(app, dict):
                 continue

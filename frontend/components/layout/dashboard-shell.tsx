@@ -9,6 +9,7 @@ import {
   Bell,
   ChevronRight,
   CircleDot,
+  FileText,
   Gauge,
   History,
   Globe2,
@@ -52,6 +53,7 @@ const navigation = [
       { href: "/activity", label: "Activity", icon: Activity },
       { href: "/internet", label: "Internet", icon: Globe2 },
       { href: "/history", label: "History", icon: History },
+      { href: "/reports", label: "Reports", icon: FileText },
     ],
   },
   {
@@ -81,6 +83,7 @@ const pageNames: Record<string, string> = {
   "/activity": "Activity",
   "/internet": "Internet Activity",
   "/history": "History",
+  "/reports": "Network Report",
   "/parental-controls": "Parental Controls",
   "/access-control": "Access Control",
   "/blocked": "Website Blocking",

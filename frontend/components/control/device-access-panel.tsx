@@ -117,10 +117,14 @@ export function DeviceAccessPanel({
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>Device identity</CardTitle>
+          <CardTitle>
+            {deviceDisplayName(device) === "Unnamed device"
+              ? "Identify this device"
+              : "Device identity"}
+          </CardTitle>
           <p className="text-muted-foreground text-xs">
-            Names and profile assignments are administrator-managed and persist
-            across scans.
+            Set a name and the household member who uses this device. These
+            details persist across scans and only change when you save them.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -132,11 +136,11 @@ export function DeviceAccessPanel({
                 placeholder="João's iPad"
               />
             </Field>
-            <Field label="Owner">
+            <Field label="User / owner">
               <Input
                 value={owner}
                 onChange={(event) => setOwner(event.target.value)}
-                placeholder="Household member"
+                placeholder="Who uses this device?"
               />
             </Field>
             <Field label="Device type">

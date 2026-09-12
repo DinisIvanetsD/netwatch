@@ -42,10 +42,7 @@ async def transition_network(
 
     previous_subnet = settings.netwatch_subnet
     previous_network_id = settings.netwatch_network_id
-    if (
-        normalized_subnet == previous_subnet
-        and normalized_id == previous_network_id
-    ):
+    if normalized_subnet == previous_subnet and normalized_id == previous_network_id:
         return None
 
     # External containment is removed before publishing the new scope. A failed

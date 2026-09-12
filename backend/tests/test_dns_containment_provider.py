@@ -61,9 +61,7 @@ def test_registry_uses_dns_containment_only_as_a_router_fallback() -> None:
 
 def test_control_actions_target_dns_containment_by_ip_not_mac() -> None:
     provider = DNSContainmentNetworkProvider(AsyncMock())
-    device = SimpleNamespace(
-        ip_address="192.168.1.25", mac_address="AA:BB:CC:DD:EE:FF"
-    )
+    device = SimpleNamespace(ip_address="192.168.1.25", mac_address="AA:BB:CC:DD:EE:FF")
 
     assert _identifier(device, provider) == "192.168.1.25"  # type: ignore[arg-type]
 
@@ -84,9 +82,7 @@ async def test_ip_controls_reject_offline_historical_devices() -> None:
     )
 
     with pytest.raises(NetworkControlActionError, match="current, online owner"):
-        await _require_current_ip_owner(
-            AsyncMock(), device, provider, "block_internet"
-        )
+        await _require_current_ip_owner(AsyncMock(), device, provider, "block_internet")
 
 
 @pytest.mark.asyncio
@@ -472,9 +468,7 @@ def test_technitium_renders_and_removes_managed_catch_all_without_manual_loss() 
         {"containment-1": {"client": "192.168.1.25"}},
     )
     groups = {group["name"]: group for group in rendered["groups"]}
-    assert rendered["networkGroupMap"]["192.168.1.25"] == (
-        "netwatch-containment-192-168-1-25"
-    )
+    assert rendered["networkGroupMap"]["192.168.1.25"] == ("netwatch-containment-192-168-1-25")
     assert groups["netwatch-containment-192-168-1-25"]["blockedRegex"] == ["^.+$"]
     assert rendered["groups"][0] == {"name": "manual", "enableBlocking": False}
     assert rendered["localEndPointGroupMap"] == {"127.0.0.1": "local-bypass"}
@@ -503,9 +497,7 @@ def test_containment_restores_an_exact_manual_client_mapping() -> None:
         "networkGroupMap": {"192.168.1.25": "manual-client"},
         "groups": [{"name": "manual-client", "enableBlocking": False}],
     }
-    containment = {
-        "containment-1": {"client": "192.168.1.25", "previousGroup": "manual-client"}
-    }
+    containment = {"containment-1": {"client": "192.168.1.25", "previousGroup": "manual-client"}}
     rendered = provider._render_config(existing, {}, containment)
     restored_input = provider._restore_previous_mapping(
         rendered, "192.168.1.25", containment["containment-1"]
@@ -532,9 +524,7 @@ async def test_technitium_preflight_requires_recent_per_client_evidence() -> Non
 
     provider.query_history = AsyncMock(
         return_value=[
-            DNSQueryRecord(
-                datetime.now(UTC), "192.168.1.25", "example.test", "A", "NoError", False
-            )
+            DNSQueryRecord(datetime.now(UTC), "192.168.1.25", "example.test", "A", "NoError", False)
         ]
     )
     result = await provider.preflight_client_containment("192.168.1.25")

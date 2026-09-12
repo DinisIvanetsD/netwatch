@@ -36,9 +36,11 @@ export function formatRelativeTime(value: string, now = Date.now()): string {
 export function deviceDisplayName(
   device: Pick<Device, "name" | "hostname" | "ip_address">,
 ): string {
-  if (device.name && device.name !== device.ip_address) return device.name;
-  if (device.hostname && device.hostname !== device.ip_address) {
-    return device.hostname;
+  const name = device.name?.trim();
+  const hostname = device.hostname?.trim();
+  if (name && name !== device.ip_address) return name;
+  if (hostname && hostname !== device.ip_address) {
+    return hostname;
   }
   return "Unnamed device";
 }

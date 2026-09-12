@@ -122,9 +122,7 @@ async def test_host_sensor_ignores_environment_proxies(monkeypatch: pytest.Monke
     adapter = HostSensorDiscoveryAdapter(
         "http://host.docker.internal:8765",
         "test-token",
-        transport=httpx.MockTransport(
-            lambda _: httpx.Response(200, json=network_payload())
-        ),
+        transport=httpx.MockTransport(lambda _: httpx.Response(200, json=network_payload())),
     )
 
     await adapter.detect_network()

@@ -11,6 +11,7 @@ import type {
   InternetActivitySummary,
 } from "@/types/internet-activity";
 import type { Alert, AlertListResponse } from "@/types/alert";
+import type { ReadinessResponse } from "@/types/readiness";
 import type {
   ProviderCapabilityList,
   ProviderStatus,
@@ -215,6 +216,10 @@ export async function updateAlertSettings(
 
 export async function getNetworkStatus(): Promise<NetworkStatus> {
   return request<NetworkStatus>("/api/network/status");
+}
+
+export async function getReadiness(): Promise<ReadinessResponse> {
+  return request<ReadinessResponse>("/api/readiness");
 }
 
 export async function getNetworkActivity(hours = 24): Promise<NetworkActivity> {

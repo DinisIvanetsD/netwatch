@@ -24,6 +24,23 @@ def _utc(value: datetime) -> datetime:
     return value.astimezone(UTC)
 
 
+def resolve_record_owners(
+    record: DNSQueryRecord,
+    histories_by_ip: dict[str, list[DeviceAddressHistory]],
+    device_by_id: dict[int, Device],
+) -> list[Device]:
+    timestamp = _utc(record.timestamp)
+    owners_by_id: dict[int, Device] = {}
+    for history in histories_by_ip.get(record.client, []):
+        started_at = _utc(history.started_at)
+        ended_at = _utc(history.ended_at) if history.ended_at else None
+        if started_at <= timestamp and (ended_at is None or timestamp <= ended_at):
+            device = device_by_id.get(history.device_id)
+            if device is not None and device.id is not None:
+                owners_by_id[device.id] = device
+    return list(owners_by_id.values())
+
+
 async def sync_dns_activity(limit: int = 500) -> int:
     provider = provider_registry.dns
     if not provider.supports(DNSCapability.QUERY_HISTORY):
@@ -67,18 +84,7 @@ async def sync_dns_activity(limit: int = 500) -> int:
 
         pending: dict[str, tuple[Device, DNSQueryRecord]] = {}
         for record in records:
-            timestamp = _utc(record.timestamp)
-            owners = []
-            for history in histories_by_ip.get(record.client, []):
-                started_at = _utc(history.started_at)
-                ended_at = _utc(history.ended_at) if history.ended_at else None
-                # Treat a hand-off instant as ambiguous when one ownership window
-                # ends exactly as another begins. It is safer to omit that one DNS
-                # record than to attribute it to the wrong household device.
-                if started_at <= timestamp and (ended_at is None or timestamp <= ended_at):
-                    device = device_by_id.get(history.device_id)
-                    if device is not None:
-                        owners.append(device)
+            owners = resolve_record_owners(record, histories_by_ip, device_by_id)
             if len(owners) != 1:
                 continue
             raw_key = "|".join(

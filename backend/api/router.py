@@ -11,6 +11,7 @@ from api.routes import (
     internet_activity,
     network,
     parental,
+    readiness,
     realtime,
     scans,
     services,
@@ -31,6 +32,7 @@ api_router.include_router(network.router)
 api_router.include_router(integrations.router)
 api_router.include_router(internet_activity.router)
 api_router.include_router(parental.router)
+api_router.include_router(readiness.router)
 
 websocket_router = APIRouter()
 websocket_router.include_router(realtime.router)

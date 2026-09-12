@@ -18,9 +18,7 @@ class DNSContainmentNetworkProvider(NetworkControlProvider):
     provider_id = "technitium_dns_containment"
     display_name = "Technitium DNS-only containment"
     identifier_kind = "ip"
-    capabilities = frozenset(
-        {NetworkCapability.BLOCK_INTERNET, NetworkCapability.UNBLOCK_INTERNET}
-    )
+    capabilities = frozenset({NetworkCapability.BLOCK_INTERNET, NetworkCapability.UNBLOCK_INTERNET})
 
     def __init__(self, dns_provider: DNSControlProvider) -> None:
         self.dns_provider = dns_provider

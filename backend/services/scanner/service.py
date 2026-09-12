@@ -379,9 +379,8 @@ class ScanService:
                 # Verify the environment again before persisting any observation,
                 # including the same-CIDR case where the subnet alone is useless.
                 after_scan = await self.discovery.detect_network()
-                if (
-                    after_scan.network_id != expected_network_id
-                    or after_scan.subnet != str(network)
+                if after_scan.network_id != expected_network_id or after_scan.subnet != str(
+                    network
                 ):
                     raise RuntimeError(
                         "The Windows host changed physical networks during the scan. "
@@ -464,9 +463,7 @@ class ScanService:
                     )
                 ).all()
             )
-            scoped_devices, _ = await consolidate_duplicate_devices(
-                session, scoped_devices
-            )
+            scoped_devices, _ = await consolidate_duplicate_devices(session, scoped_devices)
             outcome = process_discovery_results(
                 scoped_devices,
                 results,
@@ -508,6 +505,25 @@ class ScanService:
                         started_at=now,
                     )
                 )
+            # A different MAC at an address means the lease moved to another
+            # device. Close the displaced owner's active window as well, or all
+            # later DNS records for the reused address would remain ambiguous.
+            for device in outcome.displaced:
+                displaced_histories = list(
+                    (
+                        await session.scalars(
+                            select(DeviceAddressHistory).where(
+                                DeviceAddressHistory.device_id == device.id,
+                                DeviceAddressHistory.ip_address == device.ip_address,
+                                DeviceAddressHistory.network_cidr == device.network_cidr,
+                                DeviceAddressHistory.network_id == device.network_id,
+                                DeviceAddressHistory.ended_at.is_(None),
+                            )
+                        )
+                    ).all()
+                )
+                for history in displaced_histories:
+                    history.ended_at = now
             await apply_new_device_policy(session, outcome.created)
 
             await reconcile_network_control_identifiers(

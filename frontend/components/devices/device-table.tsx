@@ -65,6 +65,7 @@ function SortHeading({
         page: undefined,
       })}
       className="hover:text-foreground inline-flex items-center gap-1.5"
+      aria-label={`Sort devices by ${label}`}
     >
       {label}
       {active ? <Icon className="size-3" aria-hidden="true" /> : null}
@@ -102,8 +103,8 @@ export function DeviceTable({
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            <TableHead>Status</TableHead>
-            <TableHead>
+            <TableHead scope="col">Status</TableHead>
+            <TableHead scope="col">
               <SortHeading
                 label="Device"
                 field="name"
@@ -121,9 +122,9 @@ export function DeviceTable({
                 query={query}
               />
             </TableHead>
-            <TableHead>MAC Address</TableHead>
-            <TableHead>Vendor</TableHead>
-            <TableHead>
+            <TableHead scope="col">MAC Address</TableHead>
+            <TableHead scope="col">Vendor</TableHead>
+            <TableHead scope="col">
               <SortHeading
                 label="Latency"
                 field="latency_ms"
@@ -132,8 +133,8 @@ export function DeviceTable({
                 query={query}
               />
             </TableHead>
-            <TableHead>Services</TableHead>
-            <TableHead>
+            <TableHead scope="col">Services</TableHead>
+            <TableHead scope="col">
               <SortHeading
                 label="Last Seen"
                 field="last_seen"
@@ -164,7 +165,12 @@ export function DeviceTable({
                     </span>
                   ) : deviceDisplayName(device) === "Unnamed device" ? (
                     <span className="text-primary mt-0.5 block text-[10px] tracking-wider uppercase">
-                      Click to set name
+                      Set name and owner
+                    </span>
+                  ) : null}
+                  {device.owner ? (
+                    <span className="text-muted-foreground mt-0.5 block text-xs">
+                      Owner: {device.owner}
                     </span>
                   ) : null}
                 </Link>

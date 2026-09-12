@@ -11,6 +11,7 @@ from api.dependencies import active_source
 from core.config import settings
 from database.session import get_session
 from models.device import Device
+from models.device_address import DeviceAddressHistory
 from models.internet_activity import InternetActivity
 from schemas.internet_activity import (
     InternetActivityDiagnosticsResponse,
@@ -18,6 +19,7 @@ from schemas.internet_activity import (
     InternetActivityResponse,
     InternetActivitySummaryResponse,
 )
+from services.activity.sync import resolve_record_owners
 from services.integrations import get_technitium_integration
 from services.providers.dns import DNSCapability
 from services.providers.registry import provider_registry
@@ -63,6 +65,10 @@ async def internet_activity_diagnostics(
         "records_checked": 0,
         "matched_records": 0,
         "matched_devices": 0,
+        "attributed_records": 0,
+        "unmatched_records": 0,
+        "ambiguous_records": 0,
+        "ambiguous_clients": [],
         "unmatched_clients": [],
         "steps": _diagnostic_steps(dns_port),
     }
@@ -79,9 +85,8 @@ async def internet_activity_diagnostics(
             message=health.message,
         )
 
-    device_by_ip = {
-        device.ip_address: device.id
-        for device in (
+    devices = list(
+        (
             await session.scalars(
                 select(Device).where(
                     Device.source == active_source(),
@@ -90,7 +95,22 @@ async def internet_activity_diagnostics(
                 )
             )
         ).all()
-    }
+    )
+    device_by_id = {device.id: device for device in devices}
+    histories = list(
+        (
+            await session.scalars(
+                select(DeviceAddressHistory).where(
+                    DeviceAddressHistory.device_id.in_(device_by_id),
+                    DeviceAddressHistory.network_cidr == settings.netwatch_subnet,
+                    DeviceAddressHistory.network_id == settings.netwatch_network_id,
+                )
+            )
+        ).all()
+    )
+    histories_by_ip: dict[str, list[DeviceAddressHistory]] = {}
+    for history in histories:
+        histories_by_ip.setdefault(history.ip_address, []).append(history)
     try:
         records = await provider.query_history(limit=500)
     except Exception:
@@ -101,16 +121,29 @@ async def internet_activity_diagnostics(
             message="The DNS provider is connected but its query history could not be read.",
         )
 
-    matched = [record for record in records if record.client in device_by_ip]
-    matched_device_ids = {device_by_ip[record.client] for record in matched}
-    unmatched_clients = sorted(
-        {record.client for record in records if record.client and record.client not in device_by_ip}
-    )[:20]
+    attributed = []
+    unmatched = []
+    ambiguous = []
+    for record in records:
+        owners = resolve_record_owners(record, histories_by_ip, device_by_id)
+        if len(owners) == 1:
+            attributed.append((record, owners[0]))
+        elif len(owners) > 1:
+            ambiguous.append(record)
+        else:
+            unmatched.append(record)
+    matched_device_ids = {device.id for _, device in attributed}
+    unmatched_clients = sorted({record.client for record in unmatched if record.client})[:20]
+    ambiguous_clients = sorted({record.client for record in ambiguous if record.client})[:20]
     result = {
         **base,
         "records_checked": len(records),
-        "matched_records": len(matched),
+        "matched_records": len(attributed),
         "matched_devices": len(matched_device_ids),
+        "attributed_records": len(attributed),
+        "unmatched_records": len(unmatched),
+        "ambiguous_records": len(ambiguous),
+        "ambiguous_clients": ambiguous_clients,
         "unmatched_clients": unmatched_clients,
     }
     if not records:
@@ -119,10 +152,9 @@ async def internet_activity_diagnostics(
             status="no_queries",
             message="Technitium is connected, but its query log has no DNS requests yet.",
         )
-    if not matched:
+    if not attributed:
         port_note = (
-            f" The configured DNS listener uses port {dns_port}, "
-            "not standard port 53."
+            f" The configured DNS listener uses port {dns_port}, not standard port 53."
             if dns_port != 53
             else ""
         )

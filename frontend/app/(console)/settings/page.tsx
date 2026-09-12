@@ -8,11 +8,13 @@ import { AccessPolicyForm } from "@/components/settings/access-policy-form";
 import { ProviderCapabilityMatrix } from "@/components/settings/provider-capability-matrix";
 import { SafeSearchSettingsForm } from "@/components/settings/safe-search-settings-form";
 import { NetworkReadinessCard } from "@/components/settings/network-readiness-card";
+import { SetupChecklist } from "@/components/settings/setup-checklist";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   getProviderCapabilities,
   getInternetActivityDiagnostics,
   getNetworkStatus,
+  getReadiness,
   getRouterIntegration,
   getSafeSearch,
   getSettings,
@@ -24,15 +26,23 @@ export const metadata = { title: "Settings" };
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const [settings, technitium, router, providers, network, diagnostics] =
-    await Promise.all([
-      getSettings(),
-      getTechnitiumConfiguration(),
-      getRouterIntegration(),
-      getProviderCapabilities(),
-      getNetworkStatus(),
-      getInternetActivityDiagnostics().catch(() => null),
-    ]);
+  const [
+    settings,
+    technitium,
+    router,
+    providers,
+    network,
+    diagnostics,
+    readiness,
+  ] = await Promise.all([
+    getSettings(),
+    getTechnitiumConfiguration(),
+    getRouterIntegration(),
+    getProviderCapabilities(),
+    getNetworkStatus(),
+    getInternetActivityDiagnostics().catch(() => null),
+    getReadiness().catch(() => null),
+  ]);
   const dnsProvider = providers.items.find(
     (provider) => provider.kind === "dns",
   );
@@ -55,9 +65,20 @@ export default async function SettingsPage() {
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="lg:col-span-2">
-          <NetworkReadinessCard network={network} diagnostics={diagnostics} />
+          <SetupChecklist
+            network={network}
+            technitium={technitium}
+            providers={providers.items}
+            diagnostics={diagnostics}
+            readiness={readiness}
+          />
         </div>
-        <Card className="lg:col-span-2">
+        <div className="lg:col-span-2">
+          <div id="network-readiness">
+            <NetworkReadinessCard network={network} diagnostics={diagnostics} />
+          </div>
+        </div>
+        <Card id="router-integration" className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Router integration</CardTitle>
           </CardHeader>
@@ -107,7 +128,7 @@ export default async function SettingsPage() {
             />
           </CardContent>
         </Card>
-        <Card className="lg:col-span-2">
+        <Card id="technitium" className="lg:col-span-2">
           <CardHeader>
             <CardTitle>Technitium DNS Server</CardTitle>
           </CardHeader>
