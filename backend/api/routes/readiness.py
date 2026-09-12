@@ -16,6 +16,7 @@ from services.scanner.service import configured_discovery_adapter
 router = APIRouter(tags=["system"])
 SessionDependency = Annotated[AsyncSession, Depends(get_session)]
 PROBE_TIMEOUT = 6.0
+DISCOVERY_PROBE_TIMEOUT = 15.0
 
 
 async def _probe(coro: object, fallback: str) -> tuple[ProviderStatus | None, str]:
@@ -41,14 +42,20 @@ async def readiness(session: SessionDependency) -> ReadinessResponse:
     )
 
     adapter = None
+    environment = None
     discovery_status = "ready"
     discovery_message = "Local discovery is available."
     try:
         adapter = configured_discovery_adapter()
         if settings.netwatch_host_sensor_url:
-            await asyncio.wait_for(adapter.detect_network(), timeout=PROBE_TIMEOUT)
+            environment = await asyncio.wait_for(
+                adapter.detect_network(), timeout=DISCOVERY_PROBE_TIMEOUT
+            )
             discovery_message = "Windows host sensor is reachable and returned network data."
         else:
+            environment = await asyncio.wait_for(
+                adapter.detect_network(), timeout=DISCOVERY_PROBE_TIMEOUT
+            )
             discovery_message = "Container/system discovery is configured."
     except Exception:
         discovery_status = "unavailable"
@@ -61,11 +68,11 @@ async def readiness(session: SessionDependency) -> ReadinessResponse:
     try:
         if adapter is None:
             raise RuntimeError("discovery adapter is unavailable")
-        environment = await asyncio.wait_for(adapter.detect_network(), timeout=PROBE_TIMEOUT)
         if environment is None:
             identity_status = "degraded"
             identity_message = (
-                "Current network identity cannot be verified by this discovery adapter."
+                "The configured network is available, but this deployment cannot verify the "
+                "active interface automatically."
             )
         elif (
             environment.subnet != settings.netwatch_subnet
