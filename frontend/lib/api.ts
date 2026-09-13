@@ -62,11 +62,19 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     typeof window === "undefined"
       ? (process.env.NETWATCH_INTERNAL_API_URL ?? publicConfig.apiUrl)
       : (await getRuntimeConfig()).apiUrl;
-  const response = await fetch(`${apiUrl}${path}`, {
-    cache: "no-store",
-    headers: { Accept: "application/json" },
-    ...init,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${apiUrl}${path}`, {
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+      ...init,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") throw error;
+    throw new Error(
+      "NetWatch API is unavailable. Start the local services and try again.",
+    );
+  }
 
   if (!response.ok) {
     const payload = (await response.json().catch(() => null)) as {
@@ -226,8 +234,20 @@ export async function getNetworkProfiles(): Promise<NetworkProfileList> {
   return request<NetworkProfileList>("/api/network/profiles");
 }
 
-export async function getReadiness(): Promise<ReadinessResponse> {
-  return request<ReadinessResponse>("/api/readiness");
+export async function getReadiness(
+  timeoutMs?: number,
+): Promise<ReadinessResponse> {
+  if (!timeoutMs) return request<ReadinessResponse>("/api/readiness");
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await request<ReadinessResponse>("/api/readiness", {
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function getNetworkActivity(hours = 24): Promise<NetworkActivity> {

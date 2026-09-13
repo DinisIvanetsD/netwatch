@@ -14,7 +14,6 @@ import {
   getProviderCapabilities,
   getInternetActivityDiagnostics,
   getNetworkStatus,
-  getReadiness,
   getRouterIntegration,
   getSafeSearch,
   getSettings,
@@ -26,23 +25,15 @@ export const metadata = { title: "Settings" };
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const [
-    settings,
-    technitium,
-    router,
-    providers,
-    network,
-    diagnostics,
-    readiness,
-  ] = await Promise.all([
-    getSettings(),
-    getTechnitiumConfiguration(),
-    getRouterIntegration(),
-    getProviderCapabilities(),
-    getNetworkStatus(),
-    getInternetActivityDiagnostics().catch(() => null),
-    getReadiness().catch(() => null),
-  ]);
+  const [settings, technitium, router, providers, network, diagnostics] =
+    await Promise.all([
+      getSettings(),
+      getTechnitiumConfiguration(),
+      getRouterIntegration(),
+      getProviderCapabilities(),
+      getNetworkStatus(),
+      getInternetActivityDiagnostics().catch(() => null),
+    ]);
   const dnsProvider = providers.items.find(
     (provider) => provider.kind === "dns",
   );
@@ -70,7 +61,7 @@ export default async function SettingsPage() {
             technitium={technitium}
             providers={providers.items}
             diagnostics={diagnostics}
-            readiness={readiness}
+            readiness={null}
           />
         </div>
         <div className="lg:col-span-2">

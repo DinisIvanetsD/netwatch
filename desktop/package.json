@@ -7,6 +7,7 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
+    "test": "node --test test/startup-readiness.test.cjs",
     "dist": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1 && electron-builder --win",
     "validate": "node --check main.cjs && node --check preload.cjs",
     "prepare-runtime": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-runtime.ps1",
@@ -20,7 +21,7 @@
     "appId": "com.netwatch.desktop",
     "productName": "NetWatch",
     "directories": { "output": "release" },
-    "files": ["main.cjs", "preload.cjs", "renderer/**/*", "README.md", ".env.template"],
+    "files": ["main.cjs", "preload.cjs", "startup-readiness.cjs", "renderer/**/*", "README.md", ".env.template"],
     "extraResources": [{ "from": "runtime", "to": "netwatch" }],
     "win": { "target": [{ "target": "nsis", "arch": ["x64"] }] },
     "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true }

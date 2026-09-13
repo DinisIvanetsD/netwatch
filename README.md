@@ -324,6 +324,11 @@ installer in `desktop/release/` without copying `.env` secrets. Use `desktop\scr
 to start the installed-style shell from the repository, and `desktop\scripts\stop.ps1` for a
 graceful stop.
 
+The desktop shell keeps checking the frontend during startup for up to one minute,
+so a slower first launch recovers automatically instead of remaining on the service
+status screen. The Settings page does not wait for the slower readiness diagnostic;
+the core configuration loads first and readiness details remain supplemental.
+
 The installer is a local monitoring client, not a replacement router. Automatic device blocking
 requires an authenticated OpenWrt or OPNsense integration with the advertised capability. NOS/Hitron
 web consoles remain manual because NetWatch has no verified public control API for them.

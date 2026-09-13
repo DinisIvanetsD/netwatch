@@ -4,6 +4,7 @@ const { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } = r
 const crypto = require("node:crypto");
 const path = require("node:path");
 const http = require("node:http");
+const { createReadinessMonitor } = require("./startup-readiness.cjs");
 
 const repoRoot = path.resolve(__dirname, "..");
 const runtimeRoot = app.isPackaged
@@ -16,6 +17,9 @@ let configError;
 let restartInFlight;
 let stopInFlight;
 let quitting = false;
+let readinessGeneration = 0;
+let readinessMonitor;
+let dashboardNavigationGeneration;
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 
 if (!hasSingleInstanceLock) {
@@ -330,6 +334,36 @@ async function stopAll() {
   return stopInFlight;
 }
 
+function cancelFrontendReadiness() {
+  readinessGeneration += 1;
+  readinessMonitor?.cancel();
+  readinessMonitor = undefined;
+}
+
+function beginFrontendReadiness(started) {
+  cancelFrontendReadiness();
+  if (!started.frontendStarted || started.frontendReady) return;
+  const generation = readinessGeneration;
+  readinessMonitor = createReadinessMonitor({
+    probe: () => healthCheck(config.frontendPort, "/api/health"),
+    isCurrent: () => !quitting && generation === readinessGeneration && mainWindow && !mainWindow.isDestroyed(),
+    onReady: async () => {
+      if (generation !== readinessGeneration || !mainWindow || mainWindow.isDestroyed()) return;
+      const recovered = { ...started, frontendReady: true, failures: started.failures.filter((failure) => failure !== "frontend") };
+      mainWindow.webContents.send("desktop-state", { started: recovered, config: publicConfig() });
+      if (dashboardNavigationGeneration === generation) return;
+      dashboardNavigationGeneration = generation;
+      try {
+        await mainWindow.loadURL(`http://127.0.0.1:${config.frontendPort}`);
+      } catch (error) {
+        writeLog(`Frontend recovery navigation failed: ${error instanceof Error ? error.stack || error.message : String(error)}`);
+      }
+    },
+    onTimeout: () => writeLog(`Frontend did not become healthy during the startup grace period (generation=${generation}).`),
+  });
+  readinessMonitor.start();
+}
+
 async function createWindow() {
   configError = undefined;
   try {
@@ -361,8 +395,13 @@ async function createWindow() {
   await mainWindow.loadFile(path.join(__dirname, "renderer", "index.html"));
   mainWindow.webContents.send("desktop-state", { started, config: publicConfig() });
   if (started.frontendReady) {
+    cancelFrontendReadiness();
+    dashboardNavigationGeneration = readinessGeneration;
     await mainWindow.loadURL(`http://127.0.0.1:${config.frontendPort}`);
+  } else {
+    beginFrontendReadiness(started);
   }
+  mainWindow.on("closed", () => { cancelFrontendReadiness(); mainWindow = undefined; });
 }
 
 ipcMain.handle("netwatch:status", status);
@@ -370,11 +409,18 @@ ipcMain.handle("netwatch:open-dashboard", () => shell.openExternal(`http://127.0
 ipcMain.handle("netwatch:restart", async () => {
   if (quitting) throw new Error("NetWatch is shutting down.");
   if (restartInFlight) throw new Error("A restart is already in progress.");
+  cancelFrontendReadiness();
   restartInFlight = stopAll().then(async () => {
     if (quitting) throw new Error("NetWatch is shutting down.");
     config = prepareConfig();
     configError = undefined;
-    return startAll();
+    const started = await startAll();
+    beginFrontendReadiness(started);
+    if (started.frontendReady && mainWindow && !mainWindow.isDestroyed()) {
+      dashboardNavigationGeneration = readinessGeneration;
+      await mainWindow.loadURL(`http://127.0.0.1:${config.frontendPort}`);
+    }
+    return started;
   }).catch((error) => {
     configError = error instanceof Error ? error.message : String(error);
     throw error;
@@ -395,6 +441,7 @@ app.on("before-quit", (event) => {
   event.preventDefault();
   if (quitting) return;
   quitting = true;
+  cancelFrontendReadiness();
   stopAll().finally(() => app.exit(0));
 });
 app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });
