@@ -82,6 +82,14 @@ class OpenWrtProvider(NetworkControlProvider):
     def _managed_sections(
         self, values: object, identifier: str, *, full_device: bool | None = None
     ) -> list[str]:
+        return [
+            section
+            for section, _ in self._managed_rules(values, identifier, full_device=full_device)
+        ]
+
+    def _managed_rules(
+        self, values: object, identifier: str, *, full_device: bool | None = None
+    ) -> list[tuple[str, dict[str, Any]]]:
         names = {self._name(identifier)}
         if full_device is True:
             names = {self._full_name(identifier)}
@@ -95,14 +103,18 @@ class OpenWrtProvider(NetworkControlProvider):
         else:
             return []
 
-        sections: list[str] = []
+        rules: list[tuple[str, dict[str, Any]]] = []
         for section_key, row in rows:
             if not isinstance(row, dict) or row.get("name") not in names:
                 continue
             section = row.get(".name", section_key)
             if isinstance(section, str) and section:
-                sections.append(section)
-        return sections
+                rules.append((section, row))
+        return rules
+
+    @staticmethod
+    def _rule_is_disabled(rule: dict[str, Any]) -> bool:
+        return rule.get("enabled") in {False, "0", "false", "no", "off"}
 
     async def _reload_firewall(self) -> None:
         """Reload the standard OpenWrt firewall init script.
@@ -153,15 +165,31 @@ class OpenWrtProvider(NetworkControlProvider):
         name = self._full_name(mac) if full_device else self._name(mac)
         existing = await self._call("uci", "get", {"config": "firewall", "type": "rule"})
         sections = existing.get("values", [])
-        matching_sections = self._managed_sections(
+        matching_rules = self._managed_rules(
             sections,
             mac,
             full_device=full_device if enabled or not remove_all else None,
         )
+        matching_sections = [section for section, _ in matching_rules]
         section = matching_sections[0] if matching_sections else None
         if not enabled and not section:
             return NetworkControlResult(False, "No managed OpenWrt rule was present.")
         if enabled and section:
+            if self._rule_is_disabled(matching_rules[0][1]):
+                await self._call(
+                    "uci",
+                    "set",
+                    {
+                        "config": "firewall",
+                        "section": section,
+                        "values": {"enabled": "1"},
+                    },
+                )
+                await self._call("uci", "commit", {"config": "firewall"})
+                await self._reload_firewall()
+                return NetworkControlResult(
+                    True, f"OpenWrt managed firewall rule applied for {mac}."
+                )
             await self._reload_firewall()
             return NetworkControlResult(False, "The OpenWrt firewall rule is already applied.")
         if enabled:

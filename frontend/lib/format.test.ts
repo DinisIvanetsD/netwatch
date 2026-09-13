@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { hasAssignedDeviceName } from "@/lib/format";
+import { deviceDisplayLabel, hasAssignedDeviceName } from "@/lib/format";
 
 describe("hasAssignedDeviceName", () => {
   it("does not treat an automatically discovered hostname as an assigned name", () => {
@@ -21,5 +21,15 @@ describe("hasAssignedDeviceName", () => {
         ip_address: "192.168.1.37",
       }),
     ).toBe(true);
+  });
+
+  it("keeps unassigned device labels distinguishable with their IP", () => {
+    expect(
+      deviceDisplayLabel({
+        name: "",
+        hostname: null,
+        ip_address: "192.168.1.131",
+      }),
+    ).toBe("Unnamed device · 192.168.1.131");
   });
 });

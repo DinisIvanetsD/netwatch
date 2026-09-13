@@ -246,6 +246,8 @@ Open **Control → Access Control** or the **Access** tab on a device. Renaming,
 
 Every attempted control action is written to the audit log with its actor, provider, result, timestamp, and message. A failed provider request never changes the displayed device state.
 
+Across Activity and History, devices without an administrator-assigned name keep their discovered hostname when available and include the IP address as an explicit identifier. This prevents multiple unnamed or DHCP-renamed devices from becoming indistinguishable.
+
 ## Unknown Device Quarantine
 
 New devices begin as unknown and can generate an alert. The conservative default is **Allow + Alert**. Automatic quarantine or blocking can be selected in Settings, but it is applied only when the configured network provider safely supports the required API. Unsupported automatic actions leave the device unchanged and record a failure instead of simulating success.
@@ -299,6 +301,8 @@ The DNS provider interface is ready for additional adapters, but a Pi-hole adapt
 ## Router Integration
 
 The network-control interface defines capability checks for client inventory, status, Internet blocking, release, quarantine, disconnect, bandwidth metrics, and firewall rules. Technitium supplies a deliberately limited DNS-containment fallback; it never advertises LAN quarantine or firewall control. OpenWrt uses authenticated ubus for UCI changes and the fixed `/etc/init.d/firewall reload` command through `rpcd-mod-file` before reporting success; the router ACL must allow that exact command. OPNsense uses authenticated REST rules and the current private IP owner because standard pf rules do not support MAC matching. The detected NOS/CHITA web interface has a manual Device Filter but no verified public automation API, so NetWatch does not scrape its login or simulate success. pfSense is not advertised as an automated provider until a supported API adapter is verified.
+
+Existing managed OpenWrt rules are reconciled when they are found disabled, and malformed saved router configuration is reported as a provider error while the NetWatch API remains available.
 
 ## Windows desktop app
 

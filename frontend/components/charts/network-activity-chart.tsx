@@ -12,6 +12,13 @@ import {
 
 import type { NetworkActivityPoint } from "@/types/network";
 
+const timestampFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  hour: "2-digit",
+  timeZone: "UTC",
+});
+
 export function NetworkActivityChart({
   points,
 }: {
@@ -19,11 +26,7 @@ export function NetworkActivityChart({
 }) {
   const data = points.map((point) => ({
     ...point,
-    label: new Date(point.timestamp).toLocaleString([], {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-    }),
+    label: timestampFormatter.format(new Date(point.timestamp)),
   }));
   return (
     <div

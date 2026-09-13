@@ -52,6 +52,34 @@ async def test_openwrt_rule_reference_is_idempotent() -> None:
 
 
 @pytest.mark.asyncio
+async def test_openwrt_reenables_a_disabled_managed_rule() -> None:
+    provider = OpenWrtProvider("http://127.0.0.1", "root", "secret")
+    provider._login = AsyncMock()  # type: ignore[method-assign]
+    provider._call = AsyncMock(  # type: ignore[method-assign]
+        side_effect=[
+            {"values": [{".name": "cfg1", "name": "netwatch-aabbccddeeff", "enabled": "0"}]},
+            {},
+            {},
+            {"code": 0},
+        ]
+    )
+
+    result = await provider.block_internet("aa-bb-cc-dd-ee-ff")
+
+    assert result.changed is True
+    assert provider._call.await_args_list[1].args == (
+        "uci",
+        "set",
+        {
+            "config": "firewall",
+            "section": "cfg1",
+            "values": {"enabled": "1"},
+        },
+    )
+    assert provider._call.await_args_list[2].args == ("uci", "commit", {"config": "firewall"})
+
+
+@pytest.mark.asyncio
 async def test_openwrt_reads_indexed_uci_sections_and_releases_both_rules() -> None:
     provider = OpenWrtProvider("http://127.0.0.1", "root", "secret")
     provider._login = AsyncMock()  # type: ignore[method-assign]

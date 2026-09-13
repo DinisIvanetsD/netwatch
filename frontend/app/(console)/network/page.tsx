@@ -11,7 +11,12 @@ import {
   getNetworkStatus,
   getProviderCapabilities,
 } from "@/lib/api";
-import { formatLatency, formatRelativeTime } from "@/lib/format";
+import {
+  deviceDisplayName,
+  formatLatency,
+  formatRelativeTime,
+  hasAssignedDeviceName,
+} from "@/lib/format";
 
 export const metadata = { title: "Network" };
 
@@ -174,7 +179,7 @@ export default async function NetworkPage() {
         <CardContent className="grid gap-4 pt-5 md:grid-cols-[1fr_auto] md:items-center">
           <div>
             <p className="text-sm font-semibold">
-              {gateway?.name ?? gateway?.hostname ?? "Detected gateway"}
+              {gateway ? deviceDisplayName(gateway) : "Detected gateway"}
             </p>
             <p className="text-muted-foreground mt-1 text-xs leading-5">
               {routerControlled
@@ -210,7 +215,7 @@ export default async function NetworkPage() {
                 <Router className="size-6" aria-hidden="true" />
               </span>
               <p className="mt-2 text-sm font-semibold">
-                {gateway?.name ?? "Gateway"}
+                {gateway ? deviceDisplayName(gateway) : "Gateway"}
               </p>
               <p className="text-muted-foreground font-mono text-xs">
                 {gateway?.ip_address ?? network.gateway ?? "Not detected"}
@@ -221,12 +226,12 @@ export default async function NetworkPage() {
               {peers.map((device) => (
                 <Link
                   key={device.id}
-                  href={`/devices/${device.id}`}
+                  href={`/devices/${device.id}${hasAssignedDeviceName(device) ? "" : "?tab=access"}`}
                   className="border-border hover:border-primary/30 bg-muted/20 rounded-lg border p-4 transition-colors"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="truncate text-sm font-medium">
-                      {device.name ?? device.hostname ?? device.ip_address}
+                      {deviceDisplayName(device)}
                     </span>
                     <DeviceStatusBadge status={device.status} />
                   </div>

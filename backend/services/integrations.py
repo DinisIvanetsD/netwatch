@@ -12,6 +12,7 @@ from services.providers.common import ProviderHealth, ProviderStatus
 from services.providers.dns import TechnitiumDNSProvider
 from services.providers.network import OpenWrtProvider, OPNsenseProvider
 from services.providers.registry import provider_registry
+from services.providers.validation import ProviderURLValidationError
 
 logger = logging.getLogger(__name__)
 TECHNITIUM_PROVIDER_ID = "technitium_dns"
@@ -62,7 +63,7 @@ async def activate_router(integration: Integration) -> ProviderHealth:
             provider_registry.configure_network(
                 OPNsenseProvider(url, credentials["api_key"], credentials["api_secret"])
             )
-    except (CredentialConfigurationError, KeyError) as error:
+    except (CredentialConfigurationError, KeyError, ProviderURLValidationError, TypeError) as error:
         provider_registry.clear_network()
         return ProviderHealth(ProviderStatus.ERROR, str(error))
     return await provider_registry.network.test_connection()

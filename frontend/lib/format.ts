@@ -52,3 +52,12 @@ export function hasAssignedDeviceName(
   const hostname = device.hostname?.trim();
   return Boolean(name && name !== device.ip_address && name !== hostname);
 }
+
+export function deviceDisplayLabel(
+  device: Pick<Device, "name" | "hostname" | "ip_address">,
+): string {
+  const displayName = deviceDisplayName(device);
+  return hasAssignedDeviceName(device)
+    ? displayName
+    : `${displayName} · ${device.ip_address}`;
+}

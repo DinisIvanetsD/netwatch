@@ -3,7 +3,7 @@ import { Activity, History } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getDeviceMetrics, getDevices } from "@/lib/api";
-import { formatLatency } from "@/lib/format";
+import { deviceDisplayLabel, formatLatency } from "@/lib/format";
 
 export const metadata = { title: "History" };
 
@@ -45,9 +45,7 @@ export default async function HistoryPage() {
               <Link key={device.id} href={`/devices/${device.id}?tab=history`}>
                 <Card className="hover:border-primary/30 h-full transition-colors">
                   <CardHeader>
-                    <CardTitle>
-                      {device.name ?? device.hostname ?? device.ip_address}
-                    </CardTitle>
+                    <CardTitle>{deviceDisplayLabel(device)}</CardTitle>
                   </CardHeader>
                   <CardContent className="grid grid-cols-3 gap-3">
                     <HistoryMetric

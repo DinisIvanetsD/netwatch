@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect } from "@/components/ui/native-select";
 import { getDevices, getEvents } from "@/lib/api";
+import { deviceDisplayLabel } from "@/lib/format";
 import type { EventSeverity, EventType } from "@/types/history";
 
 export const metadata = { title: "Activity" };
@@ -58,6 +59,15 @@ export default async function ActivityPage({
   const filtered = Boolean(
     deviceId || severity || eventType || query.from || query.to,
   );
+  const deviceNames = new Map(
+    devices.items.map((device) => [device.id, deviceDisplayLabel(device)]),
+  );
+  const normalizedEvents = events.items.map((event) => ({
+    ...event,
+    device_name: event.device_id
+      ? (deviceNames.get(event.device_id) ?? event.device_name)
+      : event.device_name,
+  }));
   return (
     <div className="space-y-6">
       <div>
@@ -77,7 +87,7 @@ export default async function ActivityPage({
             <option value="">All devices</option>
             {devices.items.map((device) => (
               <option key={device.id} value={device.id}>
-                {device.name ?? device.hostname ?? device.ip_address}
+                {deviceDisplayLabel(device)}
               </option>
             ))}
           </NativeSelect>
@@ -131,8 +141,8 @@ export default async function ActivityPage({
           ) : null}
         </div>
       </form>
-      {events.items.length ? (
-        <EventTimeline events={events.items} />
+      {normalizedEvents.length ? (
+        <EventTimeline events={normalizedEvents} />
       ) : (
         <EmptyState
           icon={Activity}

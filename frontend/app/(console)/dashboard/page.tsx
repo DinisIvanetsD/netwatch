@@ -199,7 +199,8 @@ export default async function DashboardPage({
           </div>
           <div
             className="border-border bg-muted/30 flex rounded-md border p-0.5"
-            aria-label="Time range unavailable"
+            role="group"
+            aria-label="Network activity time range"
           >
             {Object.keys(ranges).map((option) => (
               <Link
@@ -210,6 +211,7 @@ export default async function DashboardPage({
                     ? "bg-accent text-foreground"
                     : "text-muted-foreground"
                 }`}
+                aria-current={option === range ? "page" : undefined}
               >
                 {option}
               </Link>
