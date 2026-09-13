@@ -49,4 +49,38 @@ describe("TechnitiumSettingsForm", () => {
     );
     expect(await screen.findByText("Connection verified.")).toBeInTheDocument();
   });
+
+  it("shows URL guidance without exposing the stored password", () => {
+    render(<TechnitiumSettingsForm initial={initial} />);
+
+    expect(screen.getByText("http://127.0.0.1:5380")).toBeInTheDocument();
+    expect(screen.getByText("http://technitium:5380")).toBeInTheDocument();
+    expect(screen.getByLabelText("Password (leave blank to keep)")).toHaveValue(
+      "",
+    );
+    expect(screen.getByText(/not DNS port 53/)).toBeInTheDocument();
+  });
+
+  it.each([
+    [
+      "rate_limited",
+      /rate-limited.*Wait before trying again; do not retry repeatedly/i,
+    ],
+    [
+      "authentication_failed",
+      /password was not accepted.*Verify it in Technitium/i,
+    ],
+  ])("explains the %s status", async (status, expectedMessage) => {
+    mocks.testTechnitium.mockResolvedValue({
+      status,
+      message: "Backend detail",
+      version: null,
+    });
+    render(<TechnitiumSettingsForm initial={initial} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Test connection" }));
+
+    expect(await screen.findByText(expectedMessage)).toBeInTheDocument();
+    expect(screen.queryByText("Backend detail")).not.toBeInTheDocument();
+  });
 });

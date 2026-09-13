@@ -37,5 +37,13 @@ scan. The router must advertise the Windows PC's LAN address as DNS for other de
 in DNS activity. Mobile hotspots and ISP routers that do not expose DHCP/DNS settings cannot be
 controlled by the desktop app.
 
+The desktop shell overrides Docker-only Technitium environment values with the local console
+address by default. This prevents a development `.env` value such as `http://technitium:5380` or
+its bootstrap password from being imported into the Windows desktop process. The password is never
+stored in `desktop/.env`; enter the current Technitium password once in Settings, where NetWatch
+stores it encrypted in the per-user application data directory. If the connection test reports
+that Technitium has temporarily blocked login attempts, stop retrying and wait for its cooldown
+before testing again.
+
 The shell creates a valid Fernet key in the per-user `config.env`. It also repairs the invalid
 unpadded key created by early development builds before saving encrypted provider credentials.

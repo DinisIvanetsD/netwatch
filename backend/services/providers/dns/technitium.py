@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import json
 import re
+from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from ipaddress import ip_address, ip_network
 from typing import Any
@@ -25,6 +26,14 @@ _NETWATCH_GROUP_PREFIX = "netwatch-"
 _NETWATCH_RULES_KEY = "netwatchManagedRules"
 _NETWATCH_CONTAINMENTS_KEY = "netwatchManagedContainments"
 _PRIVATE_DNS_CLIENTS = ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "127.0.0.0/8")
+_RATE_LIMIT_MESSAGE_PATTERN = re.compile(
+    r"max\s+limit|too\s+many\s+attempts|access\s+blocked|blocked\s+for|rate\s+limit",
+    re.IGNORECASE,
+)
+_COOLDOWN_PATTERN = re.compile(
+    r"(?:for|after|retry\s+after|wait)\s+(\d+)\s*(second|minute|hour)s?",
+    re.IGNORECASE,
+)
 
 
 class TechnitiumProviderError(RuntimeError):
@@ -33,6 +42,12 @@ class TechnitiumProviderError(RuntimeError):
 
 class TechnitiumAuthenticationError(TechnitiumProviderError):
     pass
+
+
+class TechnitiumRateLimitError(TechnitiumProviderError):
+    def __init__(self, cooldown_seconds: int | None = None) -> None:
+        self.cooldown_seconds = cooldown_seconds
+        super().__init__("Technitium temporarily blocked further attempts")
 
 
 class TechnitiumDNSProvider(DNSControlProvider):
@@ -93,6 +108,19 @@ class TechnitiumDNSProvider(DNSControlProvider):
                 data=data,
                 headers=headers,
             )
+            if response.status_code == 429:
+                payload: object = None
+                with suppress(ValueError):
+                    payload = response.json()
+                message = (
+                    payload.get("errorMessage") or payload.get("message")
+                    if isinstance(payload, dict)
+                    else None
+                )
+                cooldown = self._cooldown_seconds(response.headers.get("Retry-After"))
+                if cooldown is None and isinstance(message, str):
+                    cooldown = self._cooldown_seconds(message)
+                raise TechnitiumRateLimitError(cooldown)
             response.raise_for_status()
             payload = response.json()
         finally:
@@ -118,6 +146,8 @@ class TechnitiumDNSProvider(DNSControlProvider):
             status = payload.get("status")
             if status != "ok":
                 message = str(payload.get("errorMessage") or "Technitium rejected the credentials")
+                if self._is_rate_limited(message):
+                    raise TechnitiumRateLimitError(self._cooldown_seconds(message))
                 if status in {"invalid-token", "2fa-required"} or "password" in message.lower():
                     raise TechnitiumAuthenticationError(message)
                 raise TechnitiumProviderError(message)
@@ -155,6 +185,8 @@ class TechnitiumDNSProvider(DNSControlProvider):
             )
         if payload.get("status") != "ok":
             message = str(payload.get("errorMessage") or "Technitium API request failed")
+            if self._is_rate_limited(message):
+                raise TechnitiumRateLimitError(self._cooldown_seconds(message))
             if payload.get("status") in {"invalid-token", "2fa-required"}:
                 raise TechnitiumAuthenticationError(message)
             raise TechnitiumProviderError(message)
@@ -168,6 +200,15 @@ class TechnitiumDNSProvider(DNSControlProvider):
                 ProviderStatus.AUTHENTICATION_FAILED,
                 "Technitium DNS Server rejected the configured credentials.",
             )
+        except TechnitiumRateLimitError as error:
+            cooldown = self._format_cooldown(error.cooldown_seconds)
+            message = "Technitium DNS Server temporarily blocked further attempts. Stop retrying"
+            message += (
+                f" and wait {cooldown} before trying again."
+                if cooldown
+                else " and wait before trying again."
+            )
+            return ProviderHealth(ProviderStatus.RATE_LIMITED, message)
         except httpx.HTTPStatusError as error:
             if error.response.status_code in {401, 403}:
                 return ProviderHealth(
@@ -190,6 +231,34 @@ class TechnitiumDNSProvider(DNSControlProvider):
             "Technitium DNS Server is connected.",
             version,
         )
+
+    @staticmethod
+    def _is_rate_limited(message: str) -> bool:
+        return bool(_RATE_LIMIT_MESSAGE_PATTERN.search(message))
+
+    @staticmethod
+    def _cooldown_seconds(value: str | None) -> int | None:
+        if not value:
+            return None
+        if value.isdigit():
+            seconds = int(value)
+            return seconds if seconds > 0 else None
+        match = _COOLDOWN_PATTERN.search(value)
+        if not match:
+            return None
+        amount = int(match.group(1))
+        multiplier = {"second": 1, "minute": 60, "hour": 3600}[match.group(2).lower()]
+        return amount * multiplier if amount > 0 else None
+
+    @staticmethod
+    def _format_cooldown(seconds: int | None) -> str | None:
+        if seconds is None:
+            return None
+        if seconds % 3600 == 0:
+            return f"{seconds // 3600} hour" + ("s" if seconds != 3600 else "")
+        if seconds % 60 == 0:
+            return f"{seconds // 60} minute" + ("s" if seconds != 60 else "")
+        return f"{seconds} second" + ("s" if seconds != 1 else "")
 
     async def ensure_required_apps(self) -> tuple[str, str]:
         apps = await self._installed_apps()

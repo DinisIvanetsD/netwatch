@@ -211,6 +211,15 @@ function startBackend() {
     CORS_ORIGINS: `http://127.0.0.1:${config.frontendPort},http://localhost:${config.frontendPort}`,
     ALLOWED_HOSTS: "localhost,127.0.0.1",
     NETWATCH_HOST_SENSOR_URL: `http://127.0.0.1:${config.sensorPort}`,
+    // The repository .env is Docker-oriented and may contain the service name
+    // `technitium`. A desktop backend runs on the Windows host, so it must not
+    // inherit that hostname or its bootstrap password accidentally. Users can
+    // configure a different private URL and credential in Settings; the
+    // persisted integration remains the source of truth after setup.
+    TECHNITIUM_SERVER_URL: config.TECHNITIUM_SERVER_URL || "http://127.0.0.1:5380",
+    TECHNITIUM_USERNAME: config.TECHNITIUM_USERNAME || "admin",
+    TECHNITIUM_PASSWORD: config.TECHNITIUM_PASSWORD || "",
+    TECHNITIUM_DNS_PORT: config.TECHNITIUM_DNS_PORT || "53",
   }));
 }
 

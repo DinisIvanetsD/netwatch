@@ -128,6 +128,50 @@ async def test_technitium_reports_authentication_failure_without_raising() -> No
     assert health.status == ProviderStatus.AUTHENTICATION_FAILED
 
 
+async def test_technitium_reports_http_rate_limit_with_retry_after() -> None:
+    transport = httpx.MockTransport(
+        lambda _: httpx.Response(429, headers={"Retry-After": "120"})
+    )
+    async with _client(transport) as client:
+        provider = TechnitiumDNSProvider(
+            "http://127.0.0.1:5380",
+            "admin",
+            "secret",
+            network_cidr="192.168.1.0/24",
+            client=client,
+        )
+        health = await provider.test_connection()
+
+    assert health.status == ProviderStatus.RATE_LIMITED
+    assert "stop retrying" in health.message.lower()
+    assert "2 minutes" in health.message
+    assert "secret" not in health.message
+
+
+async def test_technitium_reports_json_rate_limit_with_cooldown() -> None:
+    transport = httpx.MockTransport(
+        lambda _: httpx.Response(
+            200,
+            json={
+                "status": "error",
+                "errorMessage": "Too many attempts; access blocked for 5 minutes.",
+            },
+        )
+    )
+    async with _client(transport) as client:
+        provider = TechnitiumDNSProvider(
+            "http://127.0.0.1:5380",
+            "admin",
+            "secret",
+            network_cidr="192.168.1.0/24",
+            client=client,
+        )
+        health = await provider.test_connection()
+
+    assert health.status == ProviderStatus.RATE_LIMITED
+    assert "5 minutes" in health.message
+
+
 async def test_technitium_provisions_required_apps_from_store() -> None:
     installed = False
 

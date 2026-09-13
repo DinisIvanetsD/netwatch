@@ -3,6 +3,7 @@ export type ProviderStatus =
   | "connected"
   | "disconnected"
   | "authentication_failed"
+  | "rate_limited"
   | "unsupported_version"
   | "error";
 

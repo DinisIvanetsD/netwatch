@@ -279,6 +279,12 @@ Technitium console immediately. NetWatch stores the password encrypted in the pe
 application data directory. The desktop shell repairs legacy invalid encryption keys on
 startup so that the integration can be saved safely.
 
+NetWatch cannot recover or display a Technitium password. If the password is forgotten, change or
+reset it in the Technitium console first, then enter the new password in NetWatch. A blank password
+in the NetWatch form intentionally means “reuse the already stored encrypted credential” only when
+the server URL and username have not changed. After repeated failed logins, Technitium can apply a
+temporary cooldown; wait for it to expire instead of retrying continuously.
+
 To collect DNS activity for other devices, the router DHCP/DNS configuration must advertise
 the NetWatch PC's LAN address (for example `192.168.1.43`) as the DNS server. A mobile hotspot
 or an ISP router that does not allow custom DHCP/DNS settings cannot transparently send other

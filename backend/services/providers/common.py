@@ -7,6 +7,7 @@ class ProviderStatus(StrEnum):
     CONNECTED = "connected"
     DISCONNECTED = "disconnected"
     AUTHENTICATION_FAILED = "authentication_failed"
+    RATE_LIMITED = "rate_limited"
     UNSUPPORTED_VERSION = "unsupported_version"
     ERROR = "error"
 
