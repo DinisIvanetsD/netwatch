@@ -12,6 +12,10 @@ const runtimeRoot = app.isPackaged
 const defaults = { backendPort: 8000, frontendPort: 3000, sensorPort: 8765 };
 const services = new Map();
 let mainWindow;
+let configError;
+let restartInFlight;
+let stopInFlight;
+let quitting = false;
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 
 if (!hasSingleInstanceLock) {
@@ -24,6 +28,26 @@ function loadEnv(file) {
     const index = line.indexOf("=");
     return [line.slice(0, index).trim(), line.slice(index + 1).trim().replace(/^['"]|['"]$/g, "")];
   }));
+}
+
+function parsePort(value, name) {
+  const port = Number.parseInt(String(value), 10);
+  if (!/^\d+$/.test(String(value)) || !Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error(`${name} must be an integer between 1 and 65535 (received ${JSON.stringify(value)}).`);
+  }
+  return port;
+}
+
+function configuredPorts(values) {
+  const ports = {
+    backendPort: parsePort(values.BACKEND_PORT ?? defaults.backendPort, "BACKEND_PORT"),
+    frontendPort: parsePort(values.FRONTEND_PORT ?? defaults.frontendPort, "FRONTEND_PORT"),
+    sensorPort: parsePort(values.SENSOR_PORT ?? defaults.sensorPort, "SENSOR_PORT"),
+  };
+  if (new Set(Object.values(ports)).size !== Object.values(ports).length) {
+    throw new Error("BACKEND_PORT, FRONTEND_PORT, and SENSOR_PORT must be different ports.");
+  }
+  return ports;
 }
 
 function generateFernetKey() {
@@ -47,7 +71,8 @@ function writeEnv(file, values) {
 
 function prepareConfig() {
   if (!app.isPackaged) {
-    return { ...defaults, ...loadEnv(path.join(__dirname, ".env")) };
+    const loaded = loadEnv(path.join(__dirname, ".env"));
+    return { ...loaded, ...configuredPorts(loaded) };
   }
   const userData = app.getPath("userData");
   mkdirSync(userData, { recursive: true });
@@ -77,6 +102,7 @@ function prepareConfig() {
   return {
     ...defaults,
     ...loaded,
+    ...configuredPorts(loaded),
     DATABASE_URL: loaded.DATABASE_URL?.includes("///./")
       ? `sqlite+aiosqlite:///${databasePath}`
       : loaded.DATABASE_URL,
@@ -132,7 +158,7 @@ function healthCheck(port, endpoint) {
   return new Promise((resolve) => {
     const request = http.get(url(port, endpoint), { timeout: 1200 }, (response) => {
       response.resume();
-      resolve(response.statusCode >= 200 && response.statusCode < 500);
+      resolve(response.statusCode >= 200 && response.statusCode < 300);
     });
     request.on("error", () => resolve(false));
     request.on("timeout", () => { request.destroy(); resolve(false); });
@@ -184,6 +210,7 @@ function startBackend() {
   startService("backend", pythonPath(), ["-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", String(config.backendPort)], path.join(runtimeRoot, "backend"), childEnv({
     CORS_ORIGINS: `http://127.0.0.1:${config.frontendPort},http://localhost:${config.frontendPort}`,
     ALLOWED_HOSTS: "localhost,127.0.0.1",
+    NETWATCH_HOST_SENSOR_URL: `http://127.0.0.1:${config.sensorPort}`,
   }));
 }
 
@@ -194,12 +221,10 @@ function startSensor() {
 function startFrontend() {
   const server = path.join(runtimeRoot, "frontend", ".next", "standalone", "server.js");
   if (!existsSync(server)) return false;
-  const command = app.isPackaged
-    ? process.execPath
-    : process.platform === "win32"
-      ? "npm.cmd"
-      : "npm";
-  const args = app.isPackaged ? [server] : ["start"];
+  const command = process.execPath;
+  const args = app.isPackaged
+    ? [server]
+    : [path.join(repoRoot, "frontend", "scripts", "start-standalone.mjs")];
   const cwd = app.isPackaged
     ? path.join(runtimeRoot, "frontend", ".next", "standalone")
     : path.join(runtimeRoot, "frontend");
@@ -207,12 +232,15 @@ function startFrontend() {
     HOSTNAME: "127.0.0.1", PORT: String(config.frontendPort),
     NEXT_PUBLIC_API_URL: `http://127.0.0.1:${config.backendPort}`,
     NEXT_PUBLIC_WS_URL: `ws://127.0.0.1:${config.backendPort}/ws`,
-    ...(app.isPackaged ? { ELECTRON_RUN_AS_NODE: "1" } : {}),
+    NETWATCH_INTERNAL_API_URL: `http://127.0.0.1:${config.backendPort}`,
+    NETWATCH_INTERNAL_WS_URL: `ws://127.0.0.1:${config.backendPort}/ws`,
+    ELECTRON_RUN_AS_NODE: "1",
   }));
   return true;
 }
 
 async function startAll() {
+  if (quitting) throw new Error("NetWatch is shutting down.");
   if (app.isPackaged) {
     await runCommand(
       pythonPath(),
@@ -221,62 +249,129 @@ async function startAll() {
       childEnv(),
     );
   }
+  if (quitting) throw new Error("NetWatch is shutting down.");
   startSensor();
   startBackend();
+  const sensorReady = await waitForHealth(config.sensorPort, "/health");
   const backendReady = await waitForHealth(config.backendPort, "/api/health");
   const frontendStarted = startFrontend();
+  const frontendReady = frontendStarted
+    ? await waitForHealth(config.frontendPort, "/api/health")
+    : false;
+  const failures = [];
+  if (!sensorReady) failures.push("sensor");
+  if (!backendReady) failures.push("backend");
+  if (!frontendStarted || !frontendReady) failures.push("frontend");
   return {
+    sensorReady,
     backendReady,
     frontendStarted,
+    frontendReady,
+    failures,
     python: pythonPath(),
     services: [...services.keys()],
   };
 }
 
 async function status() {
-  return {
+  const current = {
     sensor: await healthCheck(config.sensorPort, "/health"),
     backend: await healthCheck(config.backendPort, "/api/health"),
     frontend: await healthCheck(config.frontendPort, "/api/health"),
     frontendBuilt: existsSync(path.join(runtimeRoot, "frontend", ".next", "standalone", "server.js")),
     python: pythonPath(),
   };
+  return configError
+    ? { ...current, error: `Invalid desktop configuration: ${configError}`, failures: ["sensor", "backend", "frontend"] }
+    : current;
 }
 
 async function stopAll() {
-  for (const [name, child] of services) {
-    if (!child.killed) child.kill();
-    services.delete(name);
-  }
+  if (stopInFlight) return stopInFlight;
+  stopInFlight = Promise.all([...services.entries()].map(([name, child]) => new Promise((resolve) => {
+    if (child.exitCode !== null || child.signalCode !== null) {
+      services.delete(name);
+      resolve();
+      return;
+    }
+    let settled = false;
+    let forceTimer;
+    const isRunning = () => child.exitCode === null && child.signalCode === null;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (forceTimer) clearTimeout(forceTimer);
+      services.delete(name);
+      resolve();
+    };
+    const timer = setTimeout(() => {
+      if (isRunning()) {
+        writeLog(`[${name}] graceful stop timed out; forcing exit`);
+        child.kill("SIGKILL");
+      }
+      forceTimer = setTimeout(() => {
+        if (isRunning()) writeLog(`[${name}] force stop did not report an exit before timeout`);
+        finish();
+      }, 1000);
+    }, 3000);
+    child.once("exit", finish);
+    child.kill();
+  }))).finally(() => { stopInFlight = undefined; });
+  return stopInFlight;
 }
 
 async function createWindow() {
-  config = prepareConfig();
+  configError = undefined;
+  try {
+    config = prepareConfig();
+  } catch (error) {
+    config = defaults;
+    configError = error instanceof Error ? error.message : String(error);
+  }
   logPath = path.join(config.userData || repoRoot, "desktop.log");
   writeLog(`Starting NetWatch desktop (packaged=${app.isPackaged})`);
   mkdirSync(path.join(runtimeRoot, "backend", "data"), { recursive: true });
   mainWindow = new BrowserWindow({ width: 1180, height: 760, minWidth: 900, minHeight: 600, webPreferences: { preload: path.join(__dirname, "preload.cjs"), contextIsolation: true, sandbox: true } });
   let started;
   try {
+    if (configError) throw new Error(`Invalid desktop configuration: ${configError}`);
     started = await startAll();
   } catch (error) {
     writeLog(`NetWatch services could not be started: ${error instanceof Error ? error.stack || error.message : String(error)}`);
     started = {
+      sensorReady: false,
+      backendReady: false,
       frontendStarted: false,
+      frontendReady: false,
+      failures: ["sensor", "backend", "frontend"],
       services: [...services.keys()],
       error: error instanceof Error ? error.message : String(error),
     };
   }
   await mainWindow.loadFile(path.join(__dirname, "renderer", "index.html"));
   mainWindow.webContents.send("desktop-state", { started, config: publicConfig() });
-  if (started.frontendStarted && await waitForHealth(config.frontendPort, "/api/health")) {
+  if (started.frontendReady) {
     await mainWindow.loadURL(`http://127.0.0.1:${config.frontendPort}`);
   }
 }
 
 ipcMain.handle("netwatch:status", status);
 ipcMain.handle("netwatch:open-dashboard", () => shell.openExternal(`http://127.0.0.1:${config.frontendPort}`));
-ipcMain.handle("netwatch:restart", async () => { await stopAll(); return startAll(); });
+ipcMain.handle("netwatch:restart", async () => {
+  if (quitting) throw new Error("NetWatch is shutting down.");
+  if (restartInFlight) throw new Error("A restart is already in progress.");
+  restartInFlight = stopAll().then(async () => {
+    if (quitting) throw new Error("NetWatch is shutting down.");
+    config = prepareConfig();
+    configError = undefined;
+    return startAll();
+  }).catch((error) => {
+    configError = error instanceof Error ? error.message : String(error);
+    throw error;
+  }).finally(() => { restartInFlight = undefined; });
+  return restartInFlight;
+});
 
 if (hasSingleInstanceLock) {
   app.on("second-instance", () => {
@@ -287,5 +382,10 @@ if (hasSingleInstanceLock) {
   });
   app.whenReady().then(createWindow);
 }
-app.on("before-quit", (event) => { event.preventDefault(); stopAll().finally(() => app.exit(0)); });
+app.on("before-quit", (event) => {
+  event.preventDefault();
+  if (quitting) return;
+  quitting = true;
+  stopAll().finally(() => app.exit(0));
+});
 app.on("window-all-closed", () => { if (process.platform !== "darwin") app.quit(); });

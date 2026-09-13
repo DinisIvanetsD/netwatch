@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { publicConfig } from "@/lib/config";
+import { getRuntimeConfig } from "@/lib/config";
 
 export type SocketStatus =
   "connecting" | "connected" | "reconnecting" | "offline";
@@ -25,10 +25,12 @@ export function useNetWatchSocket() {
     let attempt = 0;
     let stopped = false;
 
-    function connect() {
+    async function connect() {
       if (stopped) return;
       setStatus(attempt ? "reconnecting" : "connecting");
-      socket = new WebSocket(publicConfig.websocketUrl);
+      const { websocketUrl } = await getRuntimeConfig();
+      if (stopped) return;
+      socket = new WebSocket(websocketUrl);
       socket.addEventListener("open", () => {
         attempt = 0;
         setStatus("connected");

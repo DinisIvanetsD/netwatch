@@ -25,6 +25,7 @@ venv/
 artifacts/
 .netwatch-sensor.pid
 .netwatch-port53-result.json
+desktop.log
 
 # Editors and OS files
 .idea/

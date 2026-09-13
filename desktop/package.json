@@ -7,9 +7,10 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
-    "dist": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-runtime.ps1 -IncludePython && electron-builder --win",
+    "dist": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1 && electron-builder --win",
     "validate": "node --check main.cjs && node --check preload.cjs",
-    "prepare-runtime": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-runtime.ps1"
+    "prepare-runtime": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-runtime.ps1",
+    "validate-runtime": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/validate-runtime.ps1 -IncludePython"
   },
   "devDependencies": {
     "electron": "^44.3.0",

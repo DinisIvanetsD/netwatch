@@ -11,7 +11,7 @@ Copy-Item desktop\.env.template desktop\.env
 .\desktop\scripts\dev.ps1
 ```
 
-`dev.ps1` resolves Python in this order: `backend\.venv\Scripts\python.exe`, then root `.venv\Scripts\python.exe`, then `python.exe` on `PATH`. This fixes the root-vs-backend environment ambiguity without changing the existing root scripts. Install frontend dependencies and run `npm run build` in `frontend` before expecting the standalone frontend to open.
+`dev.ps1` resolves Python in this order: `backend\.venv\Scripts\python.exe`, then root `.venv\Scripts\python.exe`, then `python.exe` on `PATH`. The default command assumes frontend dependencies are already installed and uses the existing frontend build if present. Pass `-BuildFrontend` to run `npm run build` first; it does not install frontend dependencies.
 
 Safe lifecycle commands:
 
@@ -24,7 +24,7 @@ Safe lifecycle commands:
 
 ## Packaging
 
-Run `npm install` in `desktop`, then `npm run dist`. The packaging step builds the frontend runtime, copies the backend and migrations, bundles a standalone Python interpreter plus the required dependencies, and produces a Windows NSIS installer in `desktop/release`.
+Install dependencies once with `npm install` in both `frontend` and `desktop`, then run `npm run dist` from `desktop`. `dist` builds the frontend standalone output, clears and stages the exact `desktop/runtime` directory, validates its required files and Python runtime, and produces a Windows NSIS installer in `desktop/release`. Python dependencies are copied from the existing `backend\.venv` when available, then the root `.venv`; the packaging scripts do not install Python packages.
 
 The generated installer keeps the SQLite database, application data, and encrypted integration credentials in the per-user NetWatch data folder. It does not bundle `.env` secrets or router credentials. On first run, configure Technitium and a supported router provider in Settings.
 

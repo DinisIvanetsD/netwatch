@@ -34,6 +34,15 @@ describe("getAllDevices", () => {
   it("loads every device using API-compliant page sizes", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            apiUrl: "http://127.0.0.1:8000",
+            websocketUrl: "ws://127.0.0.1:8000/ws",
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
       .mockResolvedValueOnce(page([device(1, "192.168.1.1")], 1, 2))
       .mockResolvedValueOnce(page([device(2, "192.168.1.2")], 2, 2));
     vi.stubGlobal("fetch", fetchMock);
@@ -44,8 +53,9 @@ describe("getAllDevices", () => {
     });
 
     expect(devices.map(({ id }) => id)).toEqual([1, 2]);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(String(fetchMock.mock.calls[0][0])).toContain("page=1&per_page=100");
-    expect(String(fetchMock.mock.calls[1][0])).toContain("page=2&per_page=100");
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/runtime-config");
+    expect(String(fetchMock.mock.calls[1][0])).toContain("page=1&per_page=100");
+    expect(String(fetchMock.mock.calls[2][0])).toContain("page=2&per_page=100");
   });
 });

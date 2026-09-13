@@ -37,11 +37,29 @@ describe("NetWatch WebSocket", () => {
     expect(reconnectDelay(10)).toBe(30_000);
   });
 
-  it("reconnects after the socket closes", () => {
+  it("reconnects after the socket closes", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            apiUrl: "http://127.0.0.1:8000",
+            websocketUrl: "ws://127.0.0.1:8000/ws",
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
     const { unmount } = renderHook(() => useNetWatchSocket());
+    await act(async () => {
+      await Promise.resolve();
+    });
     expect(FakeWebSocket.instances).toHaveLength(1);
     act(() => FakeWebSocket.instances[0].dispatchEvent(new Event("close")));
-    act(() => vi.advanceTimersByTime(1_000));
+    await act(async () => {
+      vi.advanceTimersByTime(1_000);
+      await Promise.resolve();
+    });
     expect(FakeWebSocket.instances).toHaveLength(2);
     unmount();
   });

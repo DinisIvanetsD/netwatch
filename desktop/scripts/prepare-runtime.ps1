@@ -12,14 +12,42 @@ function Copy-Directory($source, $destination) {
         throw "Required build directory was not found: $source"
     }
     New-Item -ItemType Directory -Force -Path $destination | Out-Null
-    Get-ChildItem -LiteralPath $source -Force | Copy-Item -Destination $destination -Recurse -Force
+    $sourceRoot = (Resolve-Path -LiteralPath $source).Path.TrimEnd('\')
+    foreach ($item in Get-ChildItem -LiteralPath $sourceRoot -Force -Recurse) {
+        $relativePath = $item.FullName.Substring($sourceRoot.Length).TrimStart('\')
+        if ($relativePath -match '(^|\\)__pycache__(\\|$)' -or $item.Extension -in @('.pyc', '.pyo')) {
+            continue
+        }
+        $target = Join-Path $destination $relativePath
+        if ($item.PSIsContainer) {
+            [System.IO.Directory]::CreateDirectory($target) | Out-Null
+        } else {
+            [System.IO.Directory]::CreateDirectory((Split-Path -Parent $target)) | Out-Null
+            Copy-Item -LiteralPath $item.FullName -Destination $target -Force
+        }
+    }
+}
+
+function Clear-RuntimeStagingDirectory($path) {
+    $resolvedDesktop = (Resolve-Path -LiteralPath $desktopRoot).Path.TrimEnd('\')
+    $resolvedTarget = [System.IO.Path]::GetFullPath($path).TrimEnd('\')
+    $expectedTarget = Join-Path $resolvedDesktop 'runtime'
+    if ($resolvedTarget -ne [System.IO.Path]::GetFullPath($expectedTarget).TrimEnd('\') -or
+        (Split-Path -Parent $resolvedTarget) -ne $resolvedDesktop -or
+        (Split-Path -Leaf $resolvedTarget) -ne 'runtime') {
+        throw "Refusing to clear unexpected runtime staging path: $resolvedTarget"
+    }
+    if (Test-Path -LiteralPath $resolvedTarget) {
+        Remove-Item -LiteralPath $resolvedTarget -Recurse -Force
+    }
+    New-Item -ItemType Directory -Force -Path $resolvedTarget | Out-Null
 }
 
 if (-not (Test-Path -LiteralPath (Join-Path $repoRoot "frontend\.next\standalone\server.js"))) {
     throw "Frontend standalone build is missing. Run 'npm run build' in frontend first."
 }
 
-New-Item -ItemType Directory -Force -Path $runtimeRoot | Out-Null
+Clear-RuntimeStagingDirectory $runtimeRoot
 $backendRuntime = Join-Path $runtimeRoot "backend"
 $frontendRuntime = Join-Path $runtimeRoot "frontend"
 New-Item -ItemType Directory -Force -Path $backendRuntime | Out-Null
@@ -41,8 +69,8 @@ if (Test-Path -LiteralPath (Join-Path $repoRoot "frontend\public")) {
 }
 
 $pythonCandidates = @(
-    (Join-Path $repoRoot ".venv"),
-    (Join-Path $repoRoot "backend\.venv")
+    (Join-Path $repoRoot "backend\.venv"),
+    (Join-Path $repoRoot ".venv")
 )
 $pythonSource = $pythonCandidates | Where-Object { Test-Path -LiteralPath (Join-Path $_ "Scripts\python.exe") } | Select-Object -First 1
 if ($IncludePython) {
@@ -50,6 +78,7 @@ if ($IncludePython) {
         throw "A Python virtual environment was not found in the repository or backend."
     }
     $pythonRuntime = Join-Path $runtimeRoot "python"
+    New-Item -ItemType Directory -Force -Path $pythonRuntime | Out-Null
     foreach ($stalePath in @("pyvenv.cfg", "Scripts", "Include")) {
         $staleTarget = Join-Path $pythonRuntime $stalePath
         if (-not (Test-Path -LiteralPath $staleTarget)) {
@@ -71,8 +100,15 @@ if ($IncludePython) {
         # A venv's python.exe points back to its creator's base installation.
         # Copy the base interpreter and merge only the installed dependencies so
         # the desktop package does not depend on Python being installed later.
+        $versionedPythonDll = Get-ChildItem -LiteralPath $pythonHome -Filter 'python*.dll' -File |
+            Where-Object { $_.Name -match '^python\d{2,3}\.dll$' } |
+            Sort-Object Name -Descending |
+            Select-Object -First 1
+        if (-not $versionedPythonDll) {
+            throw "Could not find the version-specific Python DLL in $pythonHome."
+        }
         foreach ($fileName in @(
-            "python.exe", "pythonw.exe", "python3.dll", "python313.dll",
+            "python.exe", "pythonw.exe", "python3.dll", $versionedPythonDll.Name,
             "vcruntime140.dll", "vcruntime140_1.dll"
         )) {
             $sourceFile = Join-Path $pythonHome $fileName

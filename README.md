@@ -306,11 +306,17 @@ Existing managed OpenWrt rules are reconciled when they are found disabled, and 
 
 ## Windows desktop app
 
-The optional Electron desktop shell is in `desktop/`. It keeps the host sensor, backend, and
-Next standalone frontend on loopback, supervises their health, opens the dashboard, and stores a
-generated valid Fernet encryption key in the per-user NetWatch data directory. Build a Windows installer with
-`npm install` followed by `npm run dist` inside `desktop/`; the build bundles the backend,
-migrations, frontend runtime, and detected Python environment without copying `.env` secrets.
+The browser URL at `http://localhost:3000` is the development frontend. The installable desktop
+application is the Electron shell in `desktop/`; it supervises the host sensor, FastAPI backend,
+and Next standalone frontend on loopback, opens the dashboard in a native window, and stores a
+generated valid Fernet encryption key in the per-user NetWatch data directory.
+
+For development, install dependencies once in `frontend/` and `desktop/`, then run
+`desktop\scripts\dev.ps1`. To build the Windows installer, run `npm run dist` inside `desktop/`.
+That command builds the frontend, stages and validates a clean runtime, and produces the NSIS
+installer in `desktop/release/` without copying `.env` secrets. Use `desktop\scripts\start.ps1`
+to start the installed-style shell from the repository, and `desktop\scripts\stop.ps1` for a
+graceful stop.
 
 The installer is a local monitoring client, not a replacement router. Automatic device blocking
 requires an authenticated OpenWrt or OPNsense integration with the advertised capability. NOS/Hitron

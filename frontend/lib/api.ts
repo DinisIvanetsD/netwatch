@@ -1,4 +1,4 @@
-import { publicConfig } from "@/lib/config";
+import { getRuntimeConfig, publicConfig } from "@/lib/config";
 import type { Device, DeviceListResponse, DeviceQuery } from "@/types/device";
 import type { Scan } from "@/types/scan";
 import type { ServiceListResponse } from "@/types/service";
@@ -61,7 +61,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const apiUrl =
     typeof window === "undefined"
       ? (process.env.NETWATCH_INTERNAL_API_URL ?? publicConfig.apiUrl)
-      : publicConfig.apiUrl;
+      : (await getRuntimeConfig()).apiUrl;
   const response = await fetch(`${apiUrl}${path}`, {
     cache: "no-store",
     headers: { Accept: "application/json" },
