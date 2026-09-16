@@ -32,3 +32,6 @@ desktop.log
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Development logs
+*.log

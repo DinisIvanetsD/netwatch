@@ -346,7 +346,7 @@ Internet records contain only the metadata supplied by configured infrastructure
 
 NetWatch runs in one of two operating modes, switchable at runtime from **Settings → Operating mode**:
 
-- **Simulation** — your own device simulates a live network. A built-in simulator evolves virtual devices every few seconds: they join and leave, go offline and recover, change latency, expose services, and generate events, alerts, and activity charts in real time. Manual scans run one visible simulation step.
+- **Simulation** — your own device simulates a live network. A built-in simulator evolves virtual devices every few seconds: they join and leave, go offline and recover, change latency, expose services, and generate **live DNS activity history** (per-device domains, services, categories, and blocked requests) in real time. A **simulated router** applies access controls, so pause, block, quarantine, and release actions work inside the simulation, and the generated traffic immediately respects the policy you applied, profile schedules, and domain rules. Manual scans run one visible simulation step.
 - **Live sensor** — your device scans the authorized private network (directly or through the Windows host sensor) and reports the real devices it finds.
 
 Simulated records use the isolated demo source and are never mixed with live scan results. The header always shows which mode is active (`SIMULATED NETWORK` or `LIVE SENSOR`), and switching modes never deletes the inventory, history, or alerts of the other mode. Set `NETWATCH_DEMO_MODE=true` to boot directly into Simulation mode.

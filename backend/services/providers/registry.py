@@ -72,6 +72,19 @@ class ProviderRegistry:
         else:
             self.network = GenericReadOnlyProvider()
 
+    def configure_simulation(self) -> None:
+        """Route access controls to the simulated router while demo mode is active."""
+
+        # Imported lazily: the simulation package pulls in the engine and the
+        # activity classifier, which import this registry at module level.
+        from services.simulation.providers import SimulatedNetworkControlProvider
+
+        self.network = SimulatedNetworkControlProvider()
+
+    def clear_simulation(self) -> None:
+        if self.network.provider_id == "simulated_router":
+            self.network = GenericReadOnlyProvider()
+
     def update_network_scope(self, network_cidr: str) -> None:
         if isinstance(self.dns, TechnitiumDNSProvider):
             self.dns.set_network_cidr(network_cidr)

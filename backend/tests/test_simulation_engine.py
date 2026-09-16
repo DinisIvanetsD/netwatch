@@ -9,8 +9,10 @@ from sqlalchemy.pool import StaticPool
 from core.config import settings
 from database.base import Base
 from models.alert import Alert
+from models.control import DomainRule
 from models.device import Device, DeviceSource, DeviceStatus
 from models.event import EventSeverity, EventType
+from models.internet_activity import InternetActivity
 from models.metric import DeviceMetric
 from services.simulation.engine import SimulationEngine
 
@@ -33,6 +35,7 @@ async def _seed_simulated_device(
     mac_address: str = "02:11:22:AA:10:30",
     ip_address: str = "192.168.1.50",
     source: DeviceSource = DeviceSource.DEMO,
+    **overrides: object,
 ) -> Device:
     now = datetime.now(UTC)
     async with factory() as session:
@@ -49,6 +52,7 @@ async def _seed_simulated_device(
             latency_ms=latency_ms,
             first_seen=now,
             last_seen=now,
+            **overrides,  # type: ignore[arg-type]
         )
         session.add(device)
         await session.commit()
@@ -176,3 +180,96 @@ async def test_tick_never_touches_live_inventory(
         stored = await session.get(Device, device.id)
         assert stored is not None
         assert stored.source == DeviceSource.LIVE
+
+
+async def test_tick_generates_blocked_history_for_a_paused_device(
+    simulation_session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _seed_simulated_device(
+        simulation_session_factory, internet_access="paused", device_type="desktop"
+    )
+    monkeypatch.setattr("services.simulation.engine.MAX_RECORDS_PER_DEVICE", 1)
+    monkeypatch.setattr("services.simulation.engine.OFFLINE_CHANCE", 0.0)
+    monkeypatch.setattr("services.simulation.engine.ARRIVAL_CHANCE", 0.0)
+    monkeypatch.setattr(
+        "services.simulation.engine.SIMULATED_DOMAINS_BY_TYPE",
+        {"desktop": ("youtube.com",)},
+    )
+    engine = SimulationEngine(seed=21, session_factory=simulation_session_factory)
+
+    outcome = await engine.tick()
+
+    assert outcome.activity_count == 1
+    assert outcome.blocked_count == 1
+    async with simulation_session_factory() as session:
+        rows = list((await session.scalars(select(InternetActivity))).all())
+        assert len(rows) == 1
+        assert rows[0].provider_id == "simulated_dns"
+        assert rows[0].domain == "youtube.com"
+        assert rows[0].blocked is True
+        assert rows[0].reason == "PausedByAdministrator"
+        assert rows[0].response_status == "FILTERED"
+        assert rows[0].service == "YouTube"
+
+
+async def test_tick_respects_enabled_domain_block_rules(
+    simulation_session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _seed_simulated_device(simulation_session_factory, device_type="desktop")
+    async with simulation_session_factory() as session:
+        session.add(
+            DomainRule(
+                source=DeviceSource.DEMO,
+                scope_type="global",
+                domain="youtube.com",
+                action="block",
+                include_subdomains=True,
+                enabled=True,
+            )
+        )
+        await session.commit()
+    monkeypatch.setattr("services.simulation.engine.MAX_RECORDS_PER_DEVICE", 1)
+    monkeypatch.setattr("services.simulation.engine.OFFLINE_CHANCE", 0.0)
+    monkeypatch.setattr("services.simulation.engine.ARRIVAL_CHANCE", 0.0)
+    monkeypatch.setattr(
+        "services.simulation.engine.SIMULATED_DOMAINS_BY_TYPE",
+        {"desktop": ("youtube.com",)},
+    )
+    engine = SimulationEngine(seed=23, session_factory=simulation_session_factory)
+
+    outcome = await engine.tick()
+
+    assert outcome.activity_count == 1
+    assert outcome.blocked_count == 1
+    async with simulation_session_factory() as session:
+        rows = list((await session.scalars(select(InternetActivity))).all())
+        assert rows[0].blocked is True
+        assert rows[0].reason == "FilteredBlackList"
+
+
+async def test_tick_records_allowed_history_for_a_free_device(
+    simulation_session_factory: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    await _seed_simulated_device(simulation_session_factory, device_type="tv")
+    monkeypatch.setattr("services.simulation.engine.MAX_RECORDS_PER_DEVICE", 1)
+    monkeypatch.setattr("services.simulation.engine.OFFLINE_CHANCE", 0.0)
+    monkeypatch.setattr("services.simulation.engine.ARRIVAL_CHANCE", 0.0)
+    monkeypatch.setattr(
+        "services.simulation.engine.SIMULATED_DOMAINS_BY_TYPE", {"tv": ("netflix.com",)}
+    )
+    engine = SimulationEngine(seed=29, session_factory=simulation_session_factory)
+
+    outcome = await engine.tick()
+
+    assert outcome.activity_count == 1
+    assert outcome.blocked_count == 0
+    async with simulation_session_factory() as session:
+        rows = list((await session.scalars(select(InternetActivity))).all())
+        assert rows[0].blocked is False
+        assert rows[0].reason is None
+        assert rows[0].response_status == "NOERROR"
+        assert rows[0].service == "Netflix"
+        assert rows[0].category == "streaming"

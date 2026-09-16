@@ -3,20 +3,25 @@ import logging
 import random
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from hashlib import sha256
 from ipaddress import ip_network
 from typing import Literal
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from core.config import settings
 from database.session import SessionLocal
 from models.alert import Alert
+from models.control import AccessSchedule, ControlProfile, DomainRule
 from models.device import Device, DeviceSource, DeviceStatus
 from models.event import Event, EventSeverity, EventType
+from models.internet_activity import InternetActivity
 from models.metric import DeviceMetric
 from models.service import Service
+from services.activity.classification import domain_classification_service
 from services.alerts.lifecycle import reconcile_alerts
+from services.control.schedules import evaluate_schedule
 from services.realtime.manager import connection_manager
 from services.retention import prune_expired_history
 from services.scanner.tcp import SERVICE_NAMES
@@ -30,6 +35,32 @@ OFFLINE_CHANCE = 0.10
 RECOVERY_CHANCE = 0.35
 MIN_SIMULATED_LATENCY_MS = 0.8
 MAX_SIMULATED_LATENCY_MS = 180.0
+MAX_RECORDS_PER_DEVICE = 2
+SIMULATED_DNS_PROVIDER_ID = "simulated_dns"
+
+
+SIMULATED_DOMAINS_BY_TYPE: dict[str, tuple[str, ...]] = {
+    "router": ("dns.google", "cloudflare-dns.com", "ntp.org"),
+    "desktop": (
+        "google.com",
+        "github.com",
+        "stackoverflow.com",
+        "youtube.com",
+        "discord.com",
+        "spotify.com",
+        "netflix.com",
+        "amazon.com",
+    ),
+    "laptop": ("google.com", "youtube.com", "netflix.com", "discord.com", "wikipedia.org"),
+    "phone": ("whatsapp.com", "instagram.com", "tiktok.com", "youtube.com", "google.com"),
+    "tablet": ("youtube.com", "netflix.com", "tiktok.com", "google.com", "wikipedia.org"),
+    "tv": ("netflix.com", "youtube.com", "nflxvideo.net", "spotify.com"),
+    "game_console": ("playstation.net", "roblox.com", "steampowered.com", "xboxlive.com"),
+    "speaker": ("spotify.com", "amazonaws.com"),
+    "iot": ("ntp.org", "amazonaws.com", "time.windows.com"),
+    "unknown": ("google.com", "youtube.com", "tiktok.com", "amazon.com"),
+}
+DEFAULT_SIMULATED_DOMAINS = ("google.com", "youtube.com", "wikipedia.org", "amazon.com")
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,6 +149,8 @@ class SimulationTick:
 
     devices: int = 0
     online_devices: int = 0
+    activity_count: int = 0
+    blocked_count: int = 0
     created: list[Device] = field(default_factory=list)
     events: list[Event] = field(default_factory=list)
     alerts: list[Alert] = field(default_factory=list)
@@ -313,6 +346,155 @@ class SimulationEngine:
             )
         return [device]
 
+    @staticmethod
+    def _rule_blocks(rule: DomainRule, device: Device, domain: str, now: datetime) -> bool:
+        if rule.action != "block":
+            return False
+        if rule.expires_at is not None:
+            expires_at = (
+                rule.expires_at if rule.expires_at.tzinfo else rule.expires_at.replace(tzinfo=UTC)
+            )
+            if expires_at <= now:
+                return False
+        if rule.scope_type == "global":
+            scope_applies = True
+        elif rule.scope_type == "device":
+            scope_applies = rule.scope_id == device.id
+        elif rule.scope_type == "profile":
+            scope_applies = device.profile_id is not None and rule.scope_id == device.profile_id
+        else:
+            return False
+        if not scope_applies:
+            return False
+        if domain == rule.domain:
+            return True
+        return bool(rule.include_subdomains and domain.endswith(f".{rule.domain}"))
+
+    def _block_reason(
+        self,
+        device: Device,
+        profiles: dict[int, ControlProfile],
+        schedules_by_profile: dict[int, list[AccessSchedule]],
+        rules: list[DomainRule],
+        domain: str,
+        now: datetime,
+    ) -> str | None:
+        if device.internet_access == "paused":
+            return "PausedByAdministrator"
+        if device.internet_access == "blocked":
+            return "FilteredBlockedService"
+        profile = profiles.get(device.profile_id) if device.profile_id else None
+        if profile is not None:
+            if not profile.internet_enabled:
+                return "FilteredParental"
+            state = evaluate_schedule(
+                profile,
+                schedules_by_profile.get(profile.id, []),
+                now=now,
+                timezone=settings.netwatch_timezone,
+            ).state
+            if state == "blocked_by_profile":
+                return "FilteredParental"
+            if state == "blocked_by_schedule":
+                return "BlockedBySchedule"
+            category = domain_classification_service.classify(domain).category
+            if category in profile.blocked_categories:
+                return "FilteredParental"
+        for rule in rules:
+            if self._rule_blocks(rule, device, domain, now):
+                return "FilteredBlackList"
+        return None
+
+    async def _generate_activity(
+        self,
+        session: AsyncSession,
+        every_device: list[Device],
+        now: datetime,
+    ) -> list[InternetActivity]:
+        profile_ids = {device.profile_id for device in every_device if device.profile_id}
+        profiles: dict[int, ControlProfile] = {}
+        schedules_by_profile: dict[int, list[AccessSchedule]] = {}
+        if profile_ids:
+            profiles = {
+                profile.id: profile
+                for profile in (
+                    await session.scalars(
+                        select(ControlProfile).where(ControlProfile.id.in_(profile_ids))
+                    )
+                ).all()
+            }
+            for schedule in (
+                await session.scalars(
+                    select(AccessSchedule).where(AccessSchedule.profile_id.in_(profile_ids))
+                )
+            ).all():
+                schedules_by_profile.setdefault(schedule.profile_id, []).append(schedule)
+        rules = list(
+            (
+                await session.scalars(
+                    select(DomainRule).where(
+                        DomainRule.source == DeviceSource.DEMO,
+                        DomainRule.enabled.is_(True),
+                        or_(DomainRule.expires_at.is_(None), DomainRule.expires_at > now),
+                    )
+                )
+            ).all()
+        )
+
+        rows: list[InternetActivity] = []
+        for device in every_device:
+            if device.status == DeviceStatus.OFFLINE:
+                continue
+            catalog = SIMULATED_DOMAINS_BY_TYPE.get(
+                device.device_type or "", DEFAULT_SIMULATED_DOMAINS
+            )
+            if not catalog:
+                continue
+            # Every online simulated device generates at least one DNS record so
+            # the Internet and Blocked views stay visibly alive between ticks.
+            for index in range(self._rng.randint(1, MAX_RECORDS_PER_DEVICE)):
+                domain = self._rng.choice(catalog)
+                reason = self._block_reason(
+                    device, profiles, schedules_by_profile, rules, domain, now
+                )
+                classification = domain_classification_service.classify(domain, block_reason=reason)
+                key = sha256(
+                    "|".join(
+                        (
+                            SIMULATED_DNS_PROVIDER_ID,
+                            device.ip_address,
+                            now.isoformat(),
+                            domain,
+                            "A",
+                            str(index),
+                        )
+                    ).encode()
+                ).hexdigest()
+                rows.append(
+                    InternetActivity(
+                        record_key=key,
+                        device_id=device.id,
+                        profile_id=device.profile_id,
+                        provider_id=SIMULATED_DNS_PROVIDER_ID,
+                        timestamp=now,
+                        source_ip=device.ip_address,
+                        domain=domain,
+                        registered_domain=classification.registered_domain,
+                        service=classification.service,
+                        category=classification.category,
+                        protocol="dns",
+                        destination_port=53,
+                        query_type="A",
+                        response_status="NOERROR" if reason is None else "FILTERED",
+                        blocked=reason is not None,
+                        reason=reason,
+                    )
+                )
+        if rows:
+            session.add_all(rows)
+            await session.flush()
+        return rows
+
     async def _simulate(self) -> SimulationTick:
         now = datetime.now(UTC)
         outcome = SimulationTick()
@@ -384,6 +566,7 @@ class SimulationEngine:
                 events=outcome.events,
             )
             session.add_all(outcome.alerts)
+            activity_rows = await self._generate_activity(session, every_device, now)
             await prune_expired_history(session, settings.retention_days)
             await session.commit()
 
@@ -391,6 +574,8 @@ class SimulationEngine:
             outcome.online_devices = sum(
                 1 for device in every_device if device.status != DeviceStatus.OFFLINE
             )
+            outcome.activity_count = len(activity_rows)
+            outcome.blocked_count = sum(1 for row in activity_rows if row.blocked)
 
         for event in outcome.events:
             await connection_manager.broadcast(
@@ -407,6 +592,22 @@ class SimulationEngine:
                     "severity": alert.severity.value,
                 },
             )
+        if activity_rows:
+            await connection_manager.broadcast(
+                "internet.activity",
+                {"count": len(activity_rows), "provider_id": SIMULATED_DNS_PROVIDER_ID},
+            )
+            blocked_rows = [row for row in activity_rows if row.blocked][:25]
+            for row in blocked_rows:
+                await connection_manager.broadcast(
+                    "internet.blocked",
+                    {
+                        "activity_id": row.id,
+                        "device_id": row.device_id,
+                        "domain": row.domain,
+                        "category": row.category,
+                    },
+                )
         await connection_manager.broadcast(
             "simulation.updated",
             {"devices": outcome.devices, "online_devices": outcome.online_devices},

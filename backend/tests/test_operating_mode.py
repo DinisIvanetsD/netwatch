@@ -11,6 +11,7 @@ from database.base import Base
 from database.session import get_session
 from main import app
 from models.setting import AppSetting
+from services.providers.registry import provider_registry
 from services.simulation import simulation_engine
 
 
@@ -32,6 +33,9 @@ async def mode_client(
     async def skip_seed() -> None:
         calls.append("seed")
 
+    async def skip_integrations() -> None:
+        return None
+
     def fake_start() -> None:
         calls.append("start")
 
@@ -46,6 +50,7 @@ async def mode_client(
         "seed_demo_alerts",
     ):
         monkeypatch.setattr(f"api.routes.settings.{name}", skip_seed)
+    monkeypatch.setattr("api.routes.settings.load_provider_integrations", skip_integrations)
     monkeypatch.setattr(simulation_engine, "start", fake_start)
     monkeypatch.setattr(simulation_engine, "stop", fake_stop)
     monkeypatch.setattr(settings, "netwatch_demo_mode", False)
@@ -56,6 +61,7 @@ async def mode_client(
             yield client, factory, calls
     finally:
         app.dependency_overrides.clear()
+        provider_registry.clear_simulation()
 
 
 async def test_settings_report_the_live_operating_mode_by_default(

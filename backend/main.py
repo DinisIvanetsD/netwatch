@@ -22,6 +22,7 @@ from services.demo import (
 )
 from services.integrations import load_provider_integrations
 from services.monitoring.engine import monitoring_engine
+from services.providers.registry import provider_registry
 from services.scanner.coordinator import scan_coordinator
 from services.settings import load_persisted_settings
 from services.simulation import simulation_engine
@@ -33,6 +34,8 @@ configure_logging()
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     await load_persisted_settings()
     await load_provider_integrations()
+    if settings.netwatch_demo_mode:
+        provider_registry.configure_simulation()
     await seed_default_control_profiles()
     async with SessionLocal() as session:
         source = DeviceSource.DEMO if settings.netwatch_demo_mode else DeviceSource.LIVE

@@ -2,11 +2,12 @@ from dataclasses import asdict
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
 from database.session import get_session
-from models.device import DeviceSource
+from models.device import Device, DeviceSource
 from models.setting import AppSetting
 from schemas.settings import HistoryClearResponse, SettingsResponse, SettingsUpdate
 from services.demo import (
@@ -16,9 +17,11 @@ from services.demo import (
     seed_demo_internet_activity,
     seed_demo_services,
 )
+from services.integrations import load_provider_integrations
 from services.monitoring.engine import monitoring_engine
 from services.network_identity import manual_network_id
 from services.network_transition import transition_network
+from services.providers.registry import provider_registry
 from services.realtime.manager import connection_manager
 from services.retention import clear_historical_data
 from services.scanner.coordinator import scan_coordinator
@@ -121,6 +124,19 @@ async def update_settings(payload: SettingsUpdate, session: SessionDependency) -
             # Flip the flag before seeding so the demo seeds accept the request.
             settings.netwatch_demo_mode = simulation_requested
             await session.merge(AppSetting(key="netwatch_demo_mode", value=simulation_requested))
+            if simulation_requested:
+                # Re-home the simulated inventory into the currently active network
+                # scope so demo data stays visible next to whichever live scope was
+                # in use before the switch.
+                await session.execute(
+                    update(Device)
+                    .where(Device.source == DeviceSource.DEMO)
+                    .values(
+                        network_cidr=settings.netwatch_subnet,
+                        network_id=settings.netwatch_network_id,
+                    )
+                    .execution_options(synchronize_session=False)
+                )
     await session.commit()
     if mode_changed:
         if simulation_requested:
@@ -129,9 +145,12 @@ async def update_settings(payload: SettingsUpdate, session: SessionDependency) -
             await seed_demo_services()
             await seed_demo_internet_activity()
             await seed_demo_alerts()
+            provider_registry.configure_simulation()
             simulation_engine.start()
         else:
             await simulation_engine.stop()
+            provider_registry.clear_simulation()
+            await load_provider_integrations()
         await connection_manager.broadcast(
             "mode.changed", {"operating_mode": payload.operating_mode}
         )

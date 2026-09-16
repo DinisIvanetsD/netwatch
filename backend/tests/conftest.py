@@ -10,6 +10,9 @@ def isolate_runtime_settings(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(settings, "netwatch_subnet", "192.168.1.0/24")
     monkeypatch.setattr(settings, "netwatch_network_id", "legacy")
     monkeypatch.setattr(settings, "monitoring_enabled", False)
+    # A local development .env can boot the app in Simulation mode; tests always
+    # exercise the live inventory unless they explicitly opt into demo fixtures.
+    monkeypatch.setattr(settings, "netwatch_demo_mode", False)
 
     async def skip_persisted_settings_load() -> None:
         return None
