@@ -29,6 +29,7 @@ const initial: NetWatchSettings = {
   new_service_alerts: true,
   latency_alerts: true,
   retention_days: 30,
+  operating_mode: "live",
 };
 
 describe("ScannerSettingsForm", () => {

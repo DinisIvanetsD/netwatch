@@ -6,6 +6,7 @@ from models.setting import AppSetting
 
 EDITABLE_KEYS = (
     "netwatch_subnet",
+    "netwatch_demo_mode",
     "auto_detect_network",
     "scan_interval",
     "scan_concurrency",
@@ -22,6 +23,7 @@ EDITABLE_KEYS = (
 )
 PERSISTED_KEYS = (*EDITABLE_KEYS, "netwatch_network_id")
 BOOLEAN_KEYS = {
+    "netwatch_demo_mode",
     "auto_detect_network",
     "service_scan_enabled",
     "monitoring_enabled",

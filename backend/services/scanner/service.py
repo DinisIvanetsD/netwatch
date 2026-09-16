@@ -37,6 +37,7 @@ from services.retention import prune_expired_history
 from services.scanner.coordinator import scan_coordinator
 from services.scanner.reconciliation import consolidate_duplicate_devices
 from services.scanner.tcp import SERVICE_NAMES, tcp_service_scanner
+from services.simulation import simulation_engine
 
 logger = logging.getLogger(__name__)
 
@@ -407,40 +408,22 @@ class ScanService:
             await scan_coordinator.release()
 
     async def _complete_demo_scan(self, scan_id: int, started: float) -> None:
+        # A manual scan in simulation mode runs one visible simulation step so the
+        # dashboard reflects the sweep instead of a no-op completion record.
+        outcome = await simulation_engine.tick()
         async with SessionLocal() as session:
-            devices = list(
-                (
-                    await session.scalars(select(Device).where(Device.source == DeviceSource.DEMO))
-                ).all()
-            )
-            devices = [
-                device
-                for device in devices
-                if device.network_cidr == settings.netwatch_subnet
-                and device.network_id == settings.netwatch_network_id
-            ]
-            count = len(devices)
-            now = datetime.now(UTC)
-            session.add_all(
-                DeviceMetric(
-                    device_id=device.id,
-                    timestamp=now,
-                    latency_ms=device.latency_ms,
-                    online=device.status != DeviceStatus.OFFLINE,
-                )
-                for device in devices
-            )
             scan = await session.get(Scan, scan_id)
             if scan is None:
                 return
+            now = datetime.now(UTC)
             scan.status = ScanStatus.COMPLETED
-            scan.devices_found = count
+            scan.devices_found = outcome.online_devices
             scan.finished_at = now
             scan.duration_ms = (perf_counter() - started) * 1000
             await prune_expired_history(session, settings.retention_days)
             await session.commit()
         await connection_manager.broadcast(
-            "scan.completed", {"scan_id": scan_id, "devices_found": count}
+            "scan.completed", {"scan_id": scan_id, "devices_found": outcome.online_devices}
         )
 
     async def _persist_results(

@@ -1,3 +1,5 @@
+export type OperatingMode = "simulation" | "live";
+
 export interface NetWatchSettings {
   subnet: string;
   auto_detect_network: boolean;
@@ -14,6 +16,7 @@ export interface NetWatchSettings {
   new_service_alerts: boolean;
   latency_alerts: boolean;
   retention_days: number;
+  operating_mode: OperatingMode;
 }
 
 export interface HistoryClearResult {

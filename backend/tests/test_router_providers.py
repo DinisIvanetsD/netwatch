@@ -86,15 +86,15 @@ async def test_openwrt_reads_indexed_uci_sections_and_releases_both_rules() -> N
     provider._call = AsyncMock(  # type: ignore[method-assign]
         side_effect=[
             {
-                    "values": {
-                        "cfg-internet": {"name": "netwatch-aabbccddeeff"},
-                        "cfg-device": {"name": "netwatch-aabbccddeeff-device"},
-                    }
-                },
-                {},
-                {},
-                {},
-                {"code": 0},
+                "values": {
+                    "cfg-internet": {"name": "netwatch-aabbccddeeff"},
+                    "cfg-device": {"name": "netwatch-aabbccddeeff-device"},
+                }
+            },
+            {},
+            {},
+            {},
+            {"code": 0},
         ]
     )
 

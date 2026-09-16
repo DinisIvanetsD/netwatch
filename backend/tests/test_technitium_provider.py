@@ -129,9 +129,7 @@ async def test_technitium_reports_authentication_failure_without_raising() -> No
 
 
 async def test_technitium_reports_http_rate_limit_with_retry_after() -> None:
-    transport = httpx.MockTransport(
-        lambda _: httpx.Response(429, headers={"Retry-After": "120"})
-    )
+    transport = httpx.MockTransport(lambda _: httpx.Response(429, headers={"Retry-After": "120"}))
     async with _client(transport) as client:
         provider = TechnitiumDNSProvider(
             "http://127.0.0.1:5380",

@@ -4,6 +4,8 @@ from pydantic import BaseModel, Field, field_validator
 
 from core.config import normalize_private_subnet
 
+OperatingMode = Literal["simulation", "live"]
+
 
 class SettingsResponse(BaseModel):
     subnet: str
@@ -20,11 +22,13 @@ class SettingsResponse(BaseModel):
     new_service_alerts: bool
     latency_alerts: bool
     retention_days: int
+    operating_mode: OperatingMode
 
 
 class SettingsUpdate(BaseModel):
     subnet: str | None = None
     auto_detect_network: bool | None = None
+    operating_mode: OperatingMode | None = None
     scan_interval: int | None = Field(default=None, ge=10, le=86_400)
     scan_concurrency: int | None = Field(default=None, ge=1, le=256)
     monitoring_enabled: bool | None = None

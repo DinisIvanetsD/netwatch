@@ -24,6 +24,7 @@ from services.integrations import load_provider_integrations
 from services.monitoring.engine import monitoring_engine
 from services.scanner.coordinator import scan_coordinator
 from services.settings import load_persisted_settings
+from services.simulation import simulation_engine
 
 configure_logging()
 
@@ -42,6 +43,8 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     await seed_demo_services()
     await seed_demo_internet_activity()
     await seed_demo_alerts()
+    if settings.netwatch_demo_mode:
+        simulation_engine.start()
     if settings.monitoring_enabled:
         monitoring_engine.start()
     try:
@@ -49,6 +52,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     finally:
         await monitoring_engine.stop()
         await scan_coordinator.shutdown()
+        await simulation_engine.stop()
         await close_database()
 
 

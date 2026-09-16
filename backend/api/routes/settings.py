@@ -9,12 +9,21 @@ from database.session import get_session
 from models.device import DeviceSource
 from models.setting import AppSetting
 from schemas.settings import HistoryClearResponse, SettingsResponse, SettingsUpdate
+from services.demo import (
+    seed_demo_alerts,
+    seed_demo_devices,
+    seed_demo_history,
+    seed_demo_internet_activity,
+    seed_demo_services,
+)
 from services.monitoring.engine import monitoring_engine
 from services.network_identity import manual_network_id
 from services.network_transition import transition_network
 from services.realtime.manager import connection_manager
 from services.retention import clear_historical_data
 from services.scanner.coordinator import scan_coordinator
+from services.simulation import simulation_engine
+from services.simulation.engine import operating_mode
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 SessionDependency = Annotated[AsyncSession, Depends(get_session)]
@@ -36,6 +45,7 @@ def current_settings() -> SettingsResponse:
         new_service_alerts=settings.new_service_alerts,
         latency_alerts=settings.latency_alerts,
         retention_days=settings.retention_days,
+        operating_mode=operating_mode(),
     )
 
 
@@ -49,6 +59,7 @@ async def update_settings(payload: SettingsUpdate, session: SessionDependency) -
     scanner_keys = {
         "subnet",
         "auto_detect_network",
+        "operating_mode",
         "scan_interval",
         "scan_concurrency",
         "offline_after_missed_scans",
@@ -101,7 +112,29 @@ async def update_settings(payload: SettingsUpdate, session: SessionDependency) -
         if value is not None:
             setattr(settings, key, value)
             await session.merge(AppSetting(key=key, value=value))
+    mode_changed = False
+    simulation_requested = False
+    if payload.operating_mode is not None:
+        simulation_requested = payload.operating_mode == "simulation"
+        mode_changed = simulation_requested != settings.netwatch_demo_mode
+        if mode_changed:
+            # Flip the flag before seeding so the demo seeds accept the request.
+            settings.netwatch_demo_mode = simulation_requested
+            await session.merge(AppSetting(key="netwatch_demo_mode", value=simulation_requested))
     await session.commit()
+    if mode_changed:
+        if simulation_requested:
+            await seed_demo_devices()
+            await seed_demo_history()
+            await seed_demo_services()
+            await seed_demo_internet_activity()
+            await seed_demo_alerts()
+            simulation_engine.start()
+        else:
+            await simulation_engine.stop()
+        await connection_manager.broadcast(
+            "mode.changed", {"operating_mode": payload.operating_mode}
+        )
     if payload.monitoring_enabled is False:
         await monitoring_engine.stop()
     elif payload.monitoring_enabled is True:

@@ -9,6 +9,7 @@ NetWatch is an open-source, self-hosted network monitoring dashboard for discove
 ## Features
 
 - Dark-first, responsive network operations dashboard
+- Switchable Simulation and Live Sensor operating modes with a real-time network simulator on your own device
 - FastAPI REST API with OpenAPI documentation
 - WebSocket transport for real-time updates
 - Async SQLAlchemy database layer with Alembic migrations
@@ -172,7 +173,7 @@ those actions disabled instead of claiming that a block succeeded.
 | `NETWATCH_ENV` | `development` | Runtime profile |
 | `DATABASE_URL` | SQLite async URL | Database connection |
 | `DATABASE_ECHO` | `false` | Enables verbose SQL logging for focused debugging |
-| `NETWATCH_DEMO_MODE` | `false` | Enables isolated demo fixtures in later phases |
+| `NETWATCH_DEMO_MODE` | `false` | Boot default for the operating mode: `true` starts in Simulation mode; switchable at runtime from Settings |
 | `NETWATCH_SUBNET` | `192.168.1.0/24` | Authorized private subnet |
 | `AUTO_DETECT_NETWORK` | `false` | Follow the active private Windows network when the host sensor is available |
 | `NETWATCH_HOST_SENSOR_URL` | none | Loopback host sensor URL; Docker Desktop normally uses `http://host.docker.internal:8765` |
@@ -341,9 +342,14 @@ HTTPS prevents NetWatch from reading search text, exact videos, messages, passwo
 
 Internet records contain only the metadata supplied by configured infrastructure: device/profile association, local client IP, domain, inferred category/service, timestamp, DNS result, and matching rule. NetWatch does not store page contents, messages, passwords, form data, or encrypted payloads. Historical activity follows the configured retention period and can be cleared without deleting device inventory.
 
-## Demo Mode
+## Operating Modes
 
-Set `NETWATCH_DEMO_MODE=true` to enable the isolated demo dataset. Demo records are never mixed with live scan results, and the interface displays a visible `DEMO MODE` badge.
+NetWatch runs in one of two operating modes, switchable at runtime from **Settings → Operating mode**:
+
+- **Simulation** — your own device simulates a live network. A built-in simulator evolves virtual devices every few seconds: they join and leave, go offline and recover, change latency, expose services, and generate events, alerts, and activity charts in real time. Manual scans run one visible simulation step.
+- **Live sensor** — your device scans the authorized private network (directly or through the Windows host sensor) and reports the real devices it finds.
+
+Simulated records use the isolated demo source and are never mixed with live scan results. The header always shows which mode is active (`SIMULATED NETWORK` or `LIVE SENSOR`), and switching modes never deletes the inventory, history, or alerts of the other mode. Set `NETWATCH_DEMO_MODE=true` to boot directly into Simulation mode.
 
 ## API Documentation
 

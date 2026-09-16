@@ -2,6 +2,7 @@ import { ServiceSettingsForm } from "@/components/settings/service-settings-form
 import { AlertSettingsForm } from "@/components/settings/alert-settings-form";
 import { DataSettingsForm } from "@/components/settings/data-settings-form";
 import { ScannerSettingsForm } from "@/components/settings/scanner-settings-form";
+import { OperatingModeForm } from "@/components/settings/operating-mode-form";
 import { TechnitiumSettingsForm } from "@/components/settings/technitium-settings-form";
 import { RouterSettingsForm } from "@/components/settings/router-settings-form";
 import { AccessPolicyForm } from "@/components/settings/access-policy-form";
@@ -55,6 +56,17 @@ export default async function SettingsPage() {
         </p>
       </div>
       <div className="grid gap-4 lg:grid-cols-2">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Operating mode</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <OperatingModeForm
+              initial={settings}
+              discoveryMode={network.discovery_mode}
+            />
+          </CardContent>
+        </Card>
         <div className="lg:col-span-2">
           <SetupChecklist
             network={network}

@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { ScanButton } from "@/components/scans/scan-button";
 import { formatRelativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import type { OperatingMode } from "@/types/settings";
 import {
   type SocketStatus,
   useNetWatchSocket,
@@ -187,13 +188,13 @@ function SidebarContent({
 
 export function DashboardShell({
   children,
-  demoMode,
+  operatingMode,
   lastCompletedScan,
   scanRunning,
   activeAlerts,
 }: Readonly<{
   children: React.ReactNode;
-  demoMode: boolean;
+  operatingMode: OperatingMode;
   lastCompletedScan: string | null;
   scanRunning: boolean;
   activeAlerts: number;
@@ -276,7 +277,21 @@ export function DashboardShell({
             </p>
           </div>
           <div className="ms-auto flex items-center gap-2">
-            {demoMode ? <Badge variant="warning">DEMO MODE</Badge> : null}
+            {operatingMode === "simulation" ? (
+              <Badge
+                variant="warning"
+                title="This device is simulating the network. No real LAN is being scanned."
+              >
+                SIMULATED NETWORK
+              </Badge>
+            ) : (
+              <Badge
+                variant="success"
+                title="This device is monitoring the real devices on your authorized network."
+              >
+                LIVE SENSOR
+              </Badge>
+            )}
             <p
               className="text-muted-foreground hidden text-xs xl:block"
               suppressHydrationWarning
