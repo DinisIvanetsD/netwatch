@@ -261,6 +261,7 @@ async def test_network_status_and_activity_use_persisted_data(
 
     status = device_client.get("/api/network/status")
     activity = device_client.get("/api/network/activity?hours=1")
+    history = device_client.get("/api/network/history?hours=168")
 
     assert status.status_code == 200
     assert status.json()["gateway"] == "192.168.1.1"
@@ -272,6 +273,13 @@ async def test_network_status_and_activity_use_persisted_data(
     assert activity.json()["points"][0]["online_devices"] == 1
     assert activity.json()["points"][0]["average_latency_ms"] == 3.0
     assert activity.json()["points"][0]["events"] == 1
+    assert history.status_code == 200
+    history_item = history.json()["items"][0]
+    assert history_item["device_id"] == live_device.id
+    assert history_item["sample_count"] == 1
+    assert history_item["online_samples"] == 1
+    assert history_item["average_latency_ms"] == 3.0
+    assert history_item["last_sample_at"] is not None
 
 
 async def test_alert_can_be_created_read_and_resolved(

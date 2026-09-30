@@ -10,9 +10,14 @@ vi.mock("next/navigation", () => ({ useRouter: () => router }));
 class FakeWebSocket extends EventTarget {
   static OPEN = 1;
   static instances: FakeWebSocket[] = [];
+  static throwNext = false;
   readyState = FakeWebSocket.OPEN;
   constructor(public url: string) {
     super();
+    if (FakeWebSocket.throwNext) {
+      FakeWebSocket.throwNext = false;
+      throw new Error("Invalid WebSocket URL");
+    }
     FakeWebSocket.instances.push(this);
   }
   send() {}
@@ -25,6 +30,7 @@ describe("NetWatch WebSocket", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     FakeWebSocket.instances = [];
+    FakeWebSocket.throwNext = false;
     vi.stubGlobal("WebSocket", FakeWebSocket);
   });
   afterEach(() => {
@@ -61,6 +67,34 @@ describe("NetWatch WebSocket", () => {
       await Promise.resolve();
     });
     expect(FakeWebSocket.instances).toHaveLength(2);
+    unmount();
+  });
+
+  it("recovers when opening a socket throws synchronously", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            apiUrl: "http://127.0.0.1:8000",
+            websocketUrl: "ws://127.0.0.1:8000/ws",
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+    FakeWebSocket.throwNext = true;
+    const { result, unmount } = renderHook(() => useNetWatchSocket());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(result.current.status).toBe("reconnecting");
+
+    await act(async () => {
+      vi.advanceTimersByTime(1_000);
+      await Promise.resolve();
+    });
+    expect(FakeWebSocket.instances).toHaveLength(1);
     unmount();
   });
 });

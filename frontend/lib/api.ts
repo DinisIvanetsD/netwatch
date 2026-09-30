@@ -5,6 +5,7 @@ import type { ServiceListResponse } from "@/types/service";
 import type { HistoryClearResult, NetWatchSettings } from "@/types/settings";
 import type {
   NetworkActivity,
+  NetworkHistory,
   NetworkProfileList,
   NetworkStatus,
 } from "@/types/network";
@@ -252,6 +253,10 @@ export async function getReadiness(
 
 export async function getNetworkActivity(hours = 24): Promise<NetworkActivity> {
   return request<NetworkActivity>(`/api/network/activity?hours=${hours}`);
+}
+
+export async function getNetworkHistory(hours = 168): Promise<NetworkHistory> {
+  return request<NetworkHistory>(`/api/network/history?hours=${hours}`);
 }
 
 export async function getTechnitiumConfiguration(): Promise<TechnitiumIntegration | null> {

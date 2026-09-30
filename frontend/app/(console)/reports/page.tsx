@@ -6,10 +6,14 @@ export const metadata = { title: "Network Report" };
 export const dynamic = "force-dynamic";
 
 export default async function ReportsPage() {
-  const [devices, alerts] = await Promise.all([
+  const [devicesResult, alertsResult] = await Promise.allSettled([
     getAllDevices({ sortBy: "name", sortOrder: "asc" }),
     getAlerts(),
   ]);
+  const devices =
+    devicesResult.status === "fulfilled" ? devicesResult.value : [];
+  const alerts =
+    alertsResult.status === "fulfilled" ? alertsResult.value.items : [];
   let dnsActivity: InternetActivityItem[] = [];
   let dnsAvailable = true;
   try {
@@ -20,8 +24,6 @@ export default async function ReportsPage() {
     dnsAvailable = false;
   }
   return (
-    <NetworkReport
-      data={{ devices, alerts: alerts.items, dnsActivity, dnsAvailable }}
-    />
+    <NetworkReport data={{ devices, alerts, dnsActivity, dnsAvailable }} />
   );
 }

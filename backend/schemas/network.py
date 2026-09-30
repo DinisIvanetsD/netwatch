@@ -44,3 +44,16 @@ class ActivityPoint(BaseModel):
 class NetworkActivityResponse(BaseModel):
     hours: int
     points: list[ActivityPoint]
+
+
+class NetworkHistoryItem(BaseModel):
+    device_id: int
+    sample_count: int
+    online_samples: int
+    average_latency_ms: float | None
+    last_sample_at: datetime | None
+
+
+class NetworkHistoryResponse(BaseModel):
+    hours: int
+    items: list[NetworkHistoryItem]

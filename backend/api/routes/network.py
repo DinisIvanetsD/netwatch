@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.routes.devices import active_source
@@ -17,6 +17,8 @@ from models.scan import Scan, ScanStatus
 from schemas.network import (
     ActivityPoint,
     NetworkActivityResponse,
+    NetworkHistoryItem,
+    NetworkHistoryResponse,
     NetworkProfileListResponse,
     NetworkProfileResponse,
     NetworkStatusResponse,
@@ -92,6 +94,7 @@ async def network_profiles(session: SessionDependency) -> NetworkProfileListResp
             not item.is_current,
             -(item.last_seen.timestamp() if item.last_seen else 0),
             item.subnet,
+            item.network_id,
         )
     )
     return NetworkProfileListResponse(items=items)
@@ -137,7 +140,7 @@ async def network_status(session: SessionDependency) -> NetworkStatusResponse:
             Scan.network_id == settings.netwatch_network_id,
             Scan.status == ScanStatus.COMPLETED,
         )
-        .order_by(Scan.finished_at.desc())
+        .order_by(Scan.finished_at.desc(), Scan.id.desc())
         .limit(1)
     )
     last_completed = last_scan.finished_at if last_scan else None
@@ -180,7 +183,7 @@ async def network_activity(
                 Device.network_id == settings.netwatch_network_id,
                 DeviceMetric.timestamp >= since,
             )
-            .order_by(DeviceMetric.timestamp)
+            .order_by(DeviceMetric.timestamp, DeviceMetric.id)
         )
     ).all()
     event_rows = list(
@@ -221,3 +224,48 @@ async def network_activity(
             )
         )
     return NetworkActivityResponse(hours=hours, points=points)
+
+
+@router.get("/history", response_model=NetworkHistoryResponse)
+async def network_history(
+    session: SessionDependency,
+    hours: Annotated[int, Query(ge=1, le=168)] = 168,
+) -> NetworkHistoryResponse:
+    """Return per-device metric summaries for the current network in one query."""
+
+    since = datetime.now(UTC) - timedelta(hours=hours)
+    rows = (
+        await session.execute(
+            select(
+                Device.id,
+                func.count(DeviceMetric.id),
+                func.sum(case((DeviceMetric.online.is_(True), 1), else_=0)),
+                func.avg(DeviceMetric.latency_ms),
+                func.max(DeviceMetric.timestamp),
+            )
+            .join(DeviceMetric, DeviceMetric.device_id == Device.id)
+            .where(
+                Device.source == active_source(),
+                Device.network_cidr == settings.netwatch_subnet,
+                Device.network_id == settings.netwatch_network_id,
+                DeviceMetric.timestamp >= since,
+            )
+            .group_by(Device.id)
+            .order_by(Device.id),
+        )
+    ).all()
+    return NetworkHistoryResponse(
+        hours=hours,
+        items=[
+            NetworkHistoryItem(
+                device_id=device_id,
+                sample_count=int(sample_count),
+                online_samples=int(online_samples or 0),
+                average_latency_ms=(
+                    float(average_latency) if average_latency is not None else None
+                ),
+                last_sample_at=last_sample_at,
+            )
+            for device_id, sample_count, online_samples, average_latency, last_sample_at in rows
+        ],
+    )

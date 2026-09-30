@@ -21,7 +21,15 @@ class ScanCoordinator:
             self._running = False
 
     def schedule(self, coroutine: Coroutine[Any, Any, None]) -> None:
-        task = asyncio.create_task(coroutine)
+        try:
+            task = asyncio.create_task(coroutine)
+        except Exception:
+            # The coroutine is created before this method is called.  If task
+            # creation fails, close it and release the reservation immediately
+            # so a failed scheduler cannot leave scans permanently blocked.
+            coroutine.close()
+            self._running = False
+            raise
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
 

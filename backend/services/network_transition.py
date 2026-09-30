@@ -21,6 +21,8 @@ class NetworkTransition:
     previous_network_id: str
     subnet: str
     network_id: str
+    reconciliation_succeeded: bool = True
+    reconciliation_error: str | None = None
 
 
 async def transition_network(
@@ -67,11 +69,13 @@ async def transition_network(
     settings.netwatch_network_id = normalized_id
     provider_registry.update_network_scope(normalized_subnet)
 
+    reconciliation_error: str | None = None
     try:
         await reconcile_all_rules(session, source)
         await session.commit()
-    except Exception:
+    except Exception as error:
         await session.rollback()
+        reconciliation_error = str(error)
         logger.exception("Domain-rule reconciliation failed after a network transition")
 
     transition = NetworkTransition(
@@ -79,6 +83,8 @@ async def transition_network(
         previous_network_id=previous_network_id,
         subnet=normalized_subnet,
         network_id=normalized_id,
+        reconciliation_succeeded=reconciliation_error is None,
+        reconciliation_error=reconciliation_error,
     )
     await connection_manager.broadcast(
         "network.changed",
@@ -88,6 +94,8 @@ async def transition_network(
             "subnet": normalized_subnet,
             "network_id": normalized_id,
             "interface": interface_name,
+            "reconciliation_succeeded": reconciliation_error is None,
+            "reconciliation_error": reconciliation_error,
         },
     )
     return transition

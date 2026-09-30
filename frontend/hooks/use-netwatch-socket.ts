@@ -25,12 +25,30 @@ export function useNetWatchSocket() {
     let attempt = 0;
     let stopped = false;
 
+    function scheduleReconnect() {
+      if (stopped || reconnectTimer) return;
+      setStatus(navigator.onLine ? "reconnecting" : "offline");
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        void connect();
+      }, reconnectDelay(attempt++));
+    }
+
     async function connect() {
       if (stopped) return;
       setStatus(attempt ? "reconnecting" : "connecting");
-      const { websocketUrl } = await getRuntimeConfig();
-      if (stopped) return;
-      socket = new WebSocket(websocketUrl);
+      try {
+        const { websocketUrl } = await getRuntimeConfig();
+        const parsedUrl = new URL(websocketUrl);
+        if (parsedUrl.protocol !== "ws:" && parsedUrl.protocol !== "wss:") {
+          throw new Error("WebSocket URL must use ws:// or wss://.");
+        }
+        if (stopped) return;
+        socket = new WebSocket(parsedUrl.toString());
+      } catch {
+        scheduleReconnect();
+        return;
+      }
       socket.addEventListener("open", () => {
         attempt = 0;
         setStatus("connected");
@@ -54,8 +72,7 @@ export function useNetWatchSocket() {
       socket.addEventListener("close", () => {
         if (heartbeat) clearInterval(heartbeat);
         if (stopped) return;
-        setStatus(navigator.onLine ? "reconnecting" : "offline");
-        reconnectTimer = setTimeout(connect, reconnectDelay(attempt++));
+        scheduleReconnect();
       });
       socket.addEventListener("error", () => socket?.close());
     }

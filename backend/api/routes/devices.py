@@ -112,7 +112,7 @@ async def get_device_metrics(
             await session.scalars(
                 select(DeviceMetric)
                 .where(*filters)
-                .order_by(DeviceMetric.timestamp.desc())
+                .order_by(DeviceMetric.timestamp.desc(), DeviceMetric.id.desc())
                 .offset((page - 1) * per_page)
                 .limit(per_page)
             )
@@ -151,7 +151,7 @@ async def get_device_events(
             await session.scalars(
                 select(Event)
                 .where(*filters)
-                .order_by(Event.timestamp.desc())
+                .order_by(Event.timestamp.desc(), Event.id.desc())
                 .offset((page - 1) * per_page)
                 .limit(per_page)
             )

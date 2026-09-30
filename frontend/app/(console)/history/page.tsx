@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Activity, History } from "lucide-react";
 import { EmptyState } from "@/components/empty-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getDeviceMetrics, getDevices } from "@/lib/api";
+import { getDevices, getNetworkHistory } from "@/lib/api";
 import { deviceDisplayLabel, formatLatency } from "@/lib/format";
 
 export const metadata = { title: "History" };
@@ -11,13 +11,14 @@ export const dynamic = "force-dynamic";
 
 export default async function HistoryPage() {
   const devices = await getDevices({ perPage: 100 });
-  const histories = await Promise.all(
-    devices.items.map(async (device) => ({
-      device,
-      metrics: (await getDeviceMetrics(device.id, 100)).items,
-    })),
+  const history = await getNetworkHistory();
+  const metricsByDevice = new Map(
+    history.items.map((item) => [item.device_id, item]),
   );
-  const withHistory = histories.filter(({ metrics }) => metrics.length > 0);
+  const withHistory = devices.items.flatMap((device) => {
+    const metrics = metricsByDevice.get(device.id);
+    return metrics ? [{ device, metrics }] : [];
+  });
 
   return (
     <div className="space-y-6">
@@ -30,17 +31,9 @@ export default async function HistoryPage() {
       {withHistory.length ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {withHistory.map(({ device, metrics }) => {
-            const onlineSamples = metrics.filter((metric) => metric.online);
-            const latencies = onlineSamples.flatMap((metric) =>
-              metric.latency_ms === null ? [] : [metric.latency_ms],
-            );
             const availability = Math.round(
-              (onlineSamples.length / metrics.length) * 100,
+              (metrics.online_samples / metrics.sample_count) * 100,
             );
-            const average = latencies.length
-              ? latencies.reduce((sum, value) => sum + value, 0) /
-                latencies.length
-              : null;
             return (
               <Link key={device.id} href={`/devices/${device.id}?tab=history`}>
                 <Card className="hover:border-primary/30 h-full transition-colors">
@@ -54,11 +47,11 @@ export default async function HistoryPage() {
                     />
                     <HistoryMetric
                       label="Avg latency"
-                      value={formatLatency(average)}
+                      value={formatLatency(metrics.average_latency_ms)}
                     />
                     <HistoryMetric
                       label="Samples"
-                      value={String(metrics.length)}
+                      value={String(metrics.sample_count)}
                     />
                   </CardContent>
                 </Card>

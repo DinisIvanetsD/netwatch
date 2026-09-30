@@ -90,16 +90,25 @@ async def configure_router(
         integration, health = await save_router_integration(session, **payload.model_dump())
     except (CredentialConfigurationError, ValueError) as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
+    await connection_manager.broadcast(
+        "provider.updated",
+        {"provider_id": integration.provider_id, "status": health.status.value},
+    )
     return _router_response(integration, health)
 
 
 @router.delete("/router", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_router(session: SessionDependency) -> Response:
     integration = await get_router_integration(session)
+    provider_id = integration.provider_id if integration is not None else "router"
     if integration is not None:
         await session.delete(integration)
         await session.commit()
     provider_registry.clear_network()
+    await connection_manager.broadcast(
+        "provider.updated",
+        {"provider_id": provider_id, "status": ProviderStatus.NOT_CONFIGURED.value},
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -210,6 +219,10 @@ async def configure_technitium(
     if health.status == ProviderStatus.CONNECTED:
         await reconcile_all_rules(session, active_source())
         await session.commit()
+    await connection_manager.broadcast(
+        "provider.updated",
+        {"provider_id": integration.provider_id, "status": health.status.value},
+    )
     return _integration_response(integration, health)
 
 
@@ -220,6 +233,10 @@ async def delete_technitium(session: SessionDependency) -> Response:
         await session.delete(integration)
         await session.commit()
     provider_registry.clear_dns()
+    await connection_manager.broadcast(
+        "provider.updated",
+        {"provider_id": "technitium_dns", "status": ProviderStatus.NOT_CONFIGURED.value},
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

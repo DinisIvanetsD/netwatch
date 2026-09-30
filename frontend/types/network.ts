@@ -40,3 +40,16 @@ export interface NetworkActivity {
   hours: number;
   points: NetworkActivityPoint[];
 }
+
+export interface NetworkHistoryItem {
+  device_id: number;
+  sample_count: number;
+  online_samples: number;
+  average_latency_ms: number | null;
+  last_sample_at: string | null;
+}
+
+export interface NetworkHistory {
+  hours: number;
+  items: NetworkHistoryItem[];
+}

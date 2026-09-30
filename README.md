@@ -18,6 +18,7 @@ NetWatch is an open-source, self-hosted network monitoring dashboard for discove
 - Persisted manual scan records with demo-safe execution
 - Live dashboard updates with reconnecting WebSocket transport
 - Historical activity charts, device metrics, event filters, and LAN mapping
+- Aggregated history summaries that keep the History view fast as inventory grows
 - Runtime-editable network, scanner, alert, service, and retention settings
 - Capability-aware provider architecture that never invents unsupported controls
 - Technitium DNS Server integration with query logging, statistics, managed website rules, and client policy groups
@@ -355,7 +356,7 @@ Simulated records use the isolated demo source and are never mixed with live sca
 
 FastAPI publishes OpenAPI at `/docs` and ReDoc at `/redoc` outside production. The Phase 1 health endpoint is `GET /api/health`, and the real-time transport is available at `/ws`.
 
-`GET /api/network/profiles` returns current and previously observed network contexts without mixing their inventories. `GET /api/readiness` returns secret-free deployment diagnostics for the database, discovery
+`GET /api/network/profiles` returns current and previously observed network contexts without mixing their inventories. `GET /api/network/history` returns one aggregated metric summary per current-network device, avoiding a request-per-device history load. `GET /api/readiness` returns secret-free deployment diagnostics for the database, discovery
 adapter, current network identity, Technitium query history, and router-control capabilities. A
 degraded readiness result is returned as HTTP 200 so the Settings page can explain the next step;
 `/api/health` remains the liveness endpoint.

@@ -4,7 +4,7 @@ $pidPath = Join-Path $desktopRoot ".netwatch-desktop.pid"
 if (-not (Test-Path -LiteralPath $pidPath)) { Write-Output "NetWatch Desktop is not running."; exit 0 }
 $desktopProcessId = [int](Get-Content -LiteralPath $pidPath -Raw)
 $process = Get-CimInstance Win32_Process -Filter "ProcessId = $desktopProcessId" -ErrorAction SilentlyContinue
-if ($process -and $process.CommandLine -match "electron.*desktop") {
+if ($process -and $process.Name -match "^electron(\.exe)?$" -and $process.CommandLine -like "*$desktopRoot*") {
   $owned = Get-Process -Id $desktopProcessId -ErrorAction Stop
   if ($owned.MainWindowHandle -ne 0) { [void]$owned.CloseMainWindow() }
   if (-not $owned.WaitForExit(5000)) {
@@ -12,5 +12,7 @@ if ($process -and $process.CommandLine -match "electron.*desktop") {
     $owned.WaitForExit(1000)
     Write-Output "NetWatch Desktop force-stopped after graceful shutdown timeout."
   } else { Write-Output "NetWatch Desktop stopped gracefully." }
-} elseif ($process) { throw "PID $desktopProcessId does not belong to NetWatch Desktop; it was not stopped." }
+} elseif ($process) {
+  Write-Output "Ignoring stale NetWatch PID $desktopProcessId; it belongs to another process."
+}
 Remove-Item -LiteralPath $pidPath -Force
